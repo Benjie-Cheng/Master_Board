@@ -23,6 +23,7 @@ v1.1：
 1、修改波特率115200->9600           20190929
 2、统一通信数据格式                 20190929
 
+
 ******************************************/
 #define  MAIN_Fosc		22118400L	//定义主时钟
 #include "STC15Fxxxx.H"
@@ -58,7 +59,7 @@ u8 RX_CONT = 0;
 BOOL Hand(u8 *a);
 enum {
 	CMD_1 = 0x01,  //继电器状态指令
-	CMD_2,//
+	CMD_2,		   //按键值指令
 	CMD_3,//
 	CMD_4,//
 	CMD_MAX
@@ -67,7 +68,7 @@ enum {
 /********************** 发送协议定义 ************************/
 //MJX+cmd+0x02+随机数+（键值+随机数)+帧尾(未定义)
 //-----------------------------------------------------------------
-u8 tx_buffer_vale[UART1_TX_LENGTH]={'M','J','X',0x02,0x02,0x00,0x00,'*'};	 //发送数组,数据位key值 0~63+16
+u8 tx_buffer_vale[UART1_TX_LENGTH]={'M','J','X',CMD_2,0x02,0x00,0x00,'*'};	 //发送数组,数据位key值 0~63+16
 
 
 /********************** 8*8矩阵键盘 ************************/
@@ -202,7 +203,7 @@ void data_in_595(u8 dat)
 	}
 }
 /**************** HC595数据锁存函数 ******************/
-void data_out_595()
+void Data_Out595()
 {		
 	A_HC595_RCLK = 0;
 	NOP2();
@@ -322,7 +323,7 @@ void Do_Keyboard_event(u8 key_code)
 // 备注: 
 //========================================================================
 //cmd：MJX+cmd1+数据长度+随机数+595值;
-void Switch_Channel_DataProce(void)
+void Switch_Led_DataProce(void)
 {
 	u8 i=0;
 	for(i=0;i<Rec_Buf[ID_LENGTH(SEND_ID)];i++)
@@ -333,9 +334,9 @@ void Switch_Channel_DataProce(void)
 		}
 		else
 			RxData[i] = RxData[i] - RxData[0];
-			data_in_595(RxData[i]);//先发高位，再发低位
+			Data_In595(RxData[i]);//先发高位，再发低位
 	}
-	data_out_595();
+	Data_Out595();
 }
 void Rcev_DataAnalysis(void)
 {
@@ -354,7 +355,7 @@ void Rcev_DataAnalysis(void)
 			#if defined FAKE_SERIAL
 					Fake_PrintString("74hc595 LED CMD!\r\n");
 			#endif
-					Switch_Channel_DataProce();
+					Switch_Led_DataProce();
 				break;
 			default:
 			#if defined FAKE_SERIAL
@@ -369,10 +370,9 @@ void Rcev_DataAnalysis(void)
 void main(void)
 {
 	stc15x_hw_init();
-	data_in_595(0x00);
-	data_in_595(0x00);
-	delay_ms(254);
-	data_out_595();	//开机默认关闭通道显示LED
+	Data_In595(0x00);
+	Data_In595(0x00);
+	Data_Out595();	//开机默认关闭通道显示LED
 	CLR_Buf();      //清除接收缓存
 #if defined FAKE_SERIAL
 	Fake_PrintString("Keyboard system init ok !\r\n");	//模拟串口发送
