@@ -1,3 +1,4 @@
+//带动1200路/3
 #define WS2811_SDA_GPIO	P10
 
 void WS2811_Delay1us(void)		//@22.1184MHz
