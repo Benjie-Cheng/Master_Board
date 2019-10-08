@@ -17,7 +17,7 @@
 
 1、本机串口接收从机8*8矩阵键盘按键码控制继电器。 
 	帧头+指令+数据长度+随机数+按键码+帧尾(暂未定义) //按键码需要解密
-2、蓝牙接收数据。
+2、蓝牙接收数据。串口1，中断方式,115200
 3、wifi接收数据。
 4、无线接收数据。
 5、控制继电器。
@@ -25,9 +25,16 @@
 存在缺陷：
 1、模拟串口uart3收发数据不稳定，优化项
 2、1中问题已经使用定时器0模拟多路串口接收解决
+
 V1.1记录：
 1、修改蓝牙握手成功提示方法。                         20190930
 2、增加按键解析，控制595的开关，并将通道值发给按键板  20190930
+V1.2记录：
+1、蓝牙协议修改成适配APP方式，其他通信接口暂时不变。  20191008
+2、内部存储4K SRAM 暂时未调通。                       20191008
+待调试：
+1、内部EEPROM 暂时未调通。                            20191008
+2、2000路595电路。                                    20191008
 ******************************************/
 #include "config.h"
 #include "debug.h"
@@ -39,7 +46,7 @@ BOOL B_1ms;	 //1ms标志
 u16	msecond; //1s计数
 u8 cnt50ms;  //50ms计数
 u8 cnt10ms;  //10ms计数
-u8 code SEND_ID[] ="0x05";
+u8 code SEND_ID[] ="MJX";
 u8 code SEND_END[] ="0xFF";
 #define ID_LENGTH(x)  sizeof(x)/sizeof(u8)
 u8 xdata RxData[5];
@@ -51,7 +58,7 @@ enum {
 	CMD_MAX
 };
 //========================================================================
-// 描述: Uart1 蓝牙模块使用定义。
+//描述: Uart1 蓝牙模块使用定义。
 #define UART1_TIMER1
 
 #if defined UART1_TIMER1
@@ -88,12 +95,10 @@ char code str1[]="AT\r\n";                                    		    //  AT测试，
 char code str2[]="AT+DEFAULT\r\n";                         		        //  恢复出厂
 char code str3[]="AT+BAUD\r\n";     			      					//  查询波特率+BAUD=8：115200 +BAUD=8：9600 默认
 //char code str4[]="AT+RESET\r\n";                                   	// 	复位
-//char code str5[]="AT+ROLE1\r\n";    									//  主从设置
-//char code str6[]="AT+PIN\r\n";   										//  密码
-//char code str8[]="AT+HELP\r\n";   									//  帮助
+char code test[]="debug test\r\n";   									//  
 #define Buf_Max 32
 u8 xdata Rec_Buf[Buf_Max];     //接收串口缓存数组
-u8 RX_CONT = 0;  
+
 BOOL Hand(u8 *RxBuf,u8 *a);
 void CLR_Buf(void);
 //========================================================================
@@ -106,12 +111,11 @@ sbit P_RXB_30 = P3^0;			//定义模拟串口接收IO
 sbit P_RXB_36 = P3^6;			//定义模拟串口接收IO
 
 
-bit	B_Rx_OK;	 		//接收完的标志位, 收到数据块系统设置1, 用户处理数据后必须清0
-//u8	RX_CONT;				//接收到的字节数, 用户处理数据后必须清0
-u8  xdata RxBuf[RxLength];	//接收缓冲
+bit	B_Rx_OK;	 		//接收完的标志位, 收到数据块系统设置1, 用户处理数据后必须清0			
+u8 RX_CONT = 0;  //接收到的字节数, 用户处理数据后必须清0
 
+//=====================================================================
 //===== 下面这些为系统使用的常量或变量, 用户不可见，请勿修改 =============
-
 #define	RxBitLenth	9		//8个数据位+1个停止位
 #define	TxBitLenth	9		//8个数据位+1个停止位
 u8  TxShiftReg,RxShiftReg;	//发送 接收 移位
@@ -120,6 +124,7 @@ u8  TxBitCnt,RxBitCnt;		//发送和接收的数据 位计数器
 u8	RxTimeOut;		//接收超时计数
 bit	RxStartFlag;			//正在接收一个字节(已收到起始位)
 u8 uart_flag =0;
+
 //=====================================================================
 u16 led_stat_cont = 0;
 BOOL Recv_Ok = 0;
@@ -171,7 +176,7 @@ void UART_INIT(void)
 }
 BOOL Hand(u8 *RxBuf,u8 *a)
 { 
-  if(strstr(RxBuf,a)!=NULL)     //判断字符串a是否是字符串Rec_Buf的子串
+  if(strstr(RxBuf,a)!=NULL)           //判断字符串a是否是字符串Rec_Buf的子串
 		return 1;                     //如果字符串a是字符串Rec_Buf的子串
 	else
 		return 0;                     //如果字符串a不是字符串Rec_Buf的子串
@@ -207,12 +212,8 @@ void Timer2Init(void)		//
 	Timer2_InterruptDisable();
 	Timer2_Stop();	
 	Timer2_1T();
-	//T2L = 0xCD;		//1ms定时
-	//T2H = 0xD4;		//1ms定时
-	T2L = 0x66;		//??????
-	T2H = 0x7E;		//??????
-//	RCAP2L = 0x33;		//???????
-//	RCAP2H = 0xF5;		//???????
+	T2L = 0x66;		//1ms定时
+	T2H = 0x7E;		//1ms定时
 	Timer2_InterruptEnable();
 	Timer2_Run();
 }
@@ -241,8 +242,6 @@ void Switch_ChannelIint()
 {
 	Switch_DataIn595(switch_status1);//关闭高8路继电器
 	Switch_DataIn595(switch_status0);//关闭低8位继电器
-	//Switch_DataIn595(0xf0);//关闭低8位继电器
-	//Switch_DataIn595(0xf0);//关闭低8位继电器
 	Switch_DataOut595();   //开机默认关闭8路继电器
 	//print_string(tx_buffer_vale);模拟串口报告给按键板指示灯状态
 }
@@ -269,7 +268,6 @@ void Switch_ChannelCtrl(u8 switch_cmd)
 	tx_buffer_vale[5] = creat_random();//产生随机数
 	tx_buffer_vale[6] = switch_status1 + tx_buffer_vale[5];//先发高位
 	tx_buffer_vale[7] = switch_status0 + tx_buffer_vale[5];//再发低位
-	//delay_ms(100);
 	//Fake_PrintString1(TX_P31,tx_buffer_vale);//模拟串口稳定后发送
 }
 //========================================================================
@@ -285,12 +283,10 @@ void stc15x_hw_init(void)
 	P5n_standard(0xff);	//设置为准双向口	
 
 	//InternalRAM_enable();
-	//ExternalRAM_enable();
 	timer0_init();
 	uart1_config();//定时器1产生波特率串口初始化,用于蓝牙
 	UART_INIT();				//UART模块的初始变量
 	Timer2Init();//用于1ms定时
-	//ExternalRAM_enable();
 }
 //========================================================================
 // 函数: set_timer1_baudraye(u16 dat)
@@ -323,7 +319,7 @@ void uart1_config(void)
 	S1_8bit();
 	S1_RX_Enable();
 	//S1_USE_P30P31();//UART1 使用P30 P31口	默认
-	S1_USE_P36P37();//UART1 使用P36_TX P37_RX口
+	S1_USE_P36P37();  //UART1 使用P36_TX P37_RX口
 	ES  = 1;	//允许中断
 	REN = 1;	//允许接收
 	EA = 1;
@@ -423,7 +419,11 @@ void Rcev_DataAnalysis(void)
 //========================================================================
 void main(void)
 {
-	u8	i,j,k;
+	u8 j,k;
+	CLR_Buf();//清除接收缓存
+	//Timer0_Stop();
+	Clear_WS2811();
+	//Timer0_Run();
 	stc15x_hw_init();
 	B_HC595_MR = 1;//复位禁止
 	B_HC595_OE = 0;//使能芯片
@@ -433,9 +433,7 @@ void main(void)
 #else
 	Clear_LedBuff();//清空带灰度的WS2811状态的缓存数组
 #endif
-	CLR_Buf();//清除接收缓存
 	Fake_PrintString(TX_P54,"STC15W408as fake UART init OK!\r\n");	//模拟串口9600，发送一个字符串
-	CLR_Buf();//清除接收缓存
 
 	do{
 		print1_string(str1);	//握手指令
@@ -446,14 +444,9 @@ void main(void)
 			break;
 		}
 	}while(!Hand(Rec_Buf,"OK"));			//判断是否握手成功,如果不成功延时一会,再发送AT握手指令
-
 	CLR_Buf(); 
-
 	Fake_PrintString(TX_P54,"BT05 hand OK\r\n");
-	for(i=0; i<RxLength; i++)	RxBuf[i]=0x01;	//把收到的数据原样返回,用于测试
-	//Timer0_Stop();
-	Clear_WS2811();
-	//Timer0_Run();
+	
 	while (1)
 	{
 	//	Timer0_Stop();
@@ -461,11 +454,11 @@ void main(void)
 	//	Timer0_Run();
 		if(Recv_Ok)
 		{
-		  Timer0_Stop();//保护WS2811发送数据，否则定时器会导致其闪烁
+			Timer0_Stop();//保护WS2811发送数据，否则定时器会导致其闪烁
 #if defined(BOOL_WS2811_LED)
 			WS2811_Display();
 #else
-			for(k = 0;k< nWs;k++){
+			for(k = 0;k < nWs;k++){
 				WS2811_SendByte(LED_Buff[k]);
 			}
 #endif
@@ -480,9 +473,7 @@ void main(void)
 			if(RX_CONT > 0)	//确认有数据
 			{
 			//	for(i=0; i<RX_CONT; i++)	TxSend(TX_P54,Rec_Buf[i]);	//把收到的数据原样返回,用于测试
-			}
-			//key_led_reverse();
-			
+			}			
 			if(Hand(Rec_Buf,"MJX"))
 			{
 				//Fake_PrintString(TX_P54,"STC15W408as fake UART init OK!\r\n");	//模拟串口9600，发送一个字符串
@@ -492,14 +483,14 @@ void main(void)
 			B_Rx_OK = 0;	//清除接收完成标志
 		}
 
-		if(B_1ms)	//1ms?
+		if(B_1ms)	//1ms计时
 		{
 			B_1ms = 0;
-			if(++msecond >= 1000)	//
+			if(++msecond >= 1000)	//1s计时
 			{	
 				msecond = 0;	
 				key_led_reverse();
-				//Fake_PrintString1(TX_P31,str4);//模拟串口稳定后发送
+				//Fake_PrintString1(TX_P31,test);//模拟串口稳定后发送
 			}
 		    if(++cnt50ms >= 50)		//50ms扫描一次行列键盘
 			{
@@ -509,7 +500,6 @@ void main(void)
 			{
 				cnt10ms = 0;
 			}
-			//Rcev_DataAnalysis();
 		}
 	}
 }
@@ -525,7 +515,7 @@ void main(void)
 
 void timer0_int(void) interrupt TIMER0_VECTOR
 {
-	//====================== 模拟串口接收程序 ========================================
+//====================== 模拟串口接收程序 ========================================
 	if (RxStartFlag)			//已接收到起始位
 	{
 		if (--RxSample == 0)			//接收数据以定时器的1/3来接收
@@ -542,7 +532,6 @@ void timer0_int(void) interrupt TIMER0_VECTOR
 					{
 						RX_CONT = 0;
 					}  
-				//	if(++RX_CONT >= RxLength)	RX_CONT = 0;	//溢出判断
 					RxTimeOut = 105;				//超时计数初值, 35个位的时间(对应5个字节), 参考MODBUS协议
 				}
 			}
@@ -573,7 +562,6 @@ void timer0_int(void) interrupt TIMER0_VECTOR
 		RxBitCnt = RxBitLenth;       //初始化接收的数据位数(8个数据位+1个停止位)    initial receive bit number (8 data bits + 1 stop bit)
 		uart_flag = 1;
 	}
-
 
 	if(RxTimeOut > 0)	//接收超时处理
 	{
@@ -667,7 +655,7 @@ void uart1_int (void) interrupt UART1_VECTOR
 		}
 		else if(Recv_start){ 
 #if defined(BOOL_WS2811_LED)
-		Write_LedStatBuff(SBUF,++bool_led_count);//收到的状态转化成bit，填入缓存区，计数加1
+		Write_LedStatBuff(SBUF,bool_led_count++);//收到的状态转化成bit，填入缓存区，计数加1
 #else
 			LED_Buff[led_stat_cont] = SBUF ? SBUF : 0;
 			led_stat_cont++;			
