@@ -4,7 +4,7 @@
 
 #include "config.h"
 #include "debug.h"
-#define nWs 250
+#define nWs 200
 
 extern void DelayMS(u16 t);
 void WS2811_SendByte(u8 dat);		//@高位先传

@@ -39,7 +39,6 @@ void WS2811_Send_H(void)		//@发送高电平“1”
 	Delay1us();
   WS2811_SDA_GPIO=0;
   Delay1us();
-
 }
 void WS2811_Send_L(void)		//@发送低电平“0”
 {
@@ -111,12 +110,11 @@ void Clear_WS2811(void)
 {
 	u16 i=0;
 	
-	for(i=0;i<nWs;i++){
+	for(i=0;i<2000;i++){
 		WS2811_SendByte(0);
-		Delay1us();
-		Delay1us();
-		Delay1us();
 	}
+	WS2811_Reset();
+	WS2811_SendByte(0);
 	WS2811_Reset();
 }
 

@@ -35,7 +35,8 @@ void BitTime(void)
 void TxSend(u8 soft_uart,u8 dat)
 {
 	u8	i;
-	EA = 0;
+	EA = 1;
+	Timer0_Stop();
 	if(soft_uart==TX_P31)
 		P_TXD = 0;
 	else if(soft_uart==TX_P54)
@@ -63,6 +64,7 @@ void TxSend(u8 soft_uart,u8 dat)
 	else if(soft_uart==TX_P54)
 		P_TXD_P54 = 1;
 	EA = 1;
+	Timer0_Run();
 	BitTime();
 	BitTime();
 }

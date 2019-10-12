@@ -19,8 +19,8 @@ enum {
 	TX_P54,//Key_board
 
 };
-sbit	P_TXD = P3^1;	//定义模拟串口发送端,可以是任意IO
-sbit	P_TXD_P54 = P3^6;	//定义模拟串口发送端,可以是任意IO
+sbit	P_TXD = P3^5;	//定义模拟串口发送端,可以是任意IO
+sbit	P_TXD_P54 = P3^1;	//定义模拟串口发送端,可以是任意IO
 void TxSend(u8 soft_uart,u8 dat);
 void Fake_PrintString(u8 soft_uart,u8 *puts);
 void Fake_PrintString1(u8 soft_uart,u8 *puts);

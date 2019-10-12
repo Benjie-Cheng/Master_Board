@@ -62,7 +62,7 @@ enum {
 #define UART1_TIMER1
 
 #if defined UART1_TIMER1
-#define	Baudrate1	9600UL 
+#define	Baudrate1	115200UL 
 BOOL B_TX1_Busy;  //发送忙标志
 void uart1_config(void);
 #endif
@@ -108,7 +108,7 @@ void CLR_Buf(void);
 #define RxLength		32		//接收缓冲长度
 //定义按键 模拟串口
 sbit P_RXB_30 = P3^0;			//定义模拟串口接收IO
-sbit P_RXB_36 = P3^6;			//定义模拟串口接收IO
+sbit P_RXB_36 = P3^4;			//定义模拟串口接收IO
 
 
 bit	B_Rx_OK;	 		//接收完的标志位, 收到数据块系统设置1, 用户处理数据后必须清0			
@@ -130,11 +130,12 @@ u16 led_stat_cont = 0;
 BOOL Recv_Ok = 0;
 BOOL Recv_start =0;
 
-#define BOOL_WS2811_LED
+//#define BOOL_WS2811_LED
 #if defined(BOOL_WS2811_LED)
 #define bit_to_u8(x) rem(x,8) ? (mod(x,8)+1) : mod(x,8)
+u16 LED_StatByteSize = bit_to_u8(nWs);
 u8 xdata LED_StatByte[bit_to_u8(nWs)];//nWs，为LED个数
-static u16 bool_led_count = 0;//接收到LED数据的个数。
+u16 bool_led_count = 0;//接收到LED数据的个数。
 void Clear_LedStatByte(void);
 void WS2811_Display(void);
 #else
@@ -245,6 +246,7 @@ void Switch_ChannelIint()
 	Switch_DataOut595();   //开机默认关闭8路继电器
 	//print_string(tx_buffer_vale);模拟串口报告给按键板指示灯状态
 }
+
 /*********************按键值控制继电器*********************/
 /*Function List: 按键值控制继电器
 *switch_cmd：是控制的通道值，经过解码后的按键数值
@@ -270,6 +272,37 @@ void Switch_ChannelCtrl(u8 switch_cmd)
 	tx_buffer_vale[7] = switch_status0 + tx_buffer_vale[5];//再发低位
 	//Fake_PrintString1(TX_P31,tx_buffer_vale);//模拟串口稳定后发送
 }
+
+#if 0
+/****************LED_HC595发送一个字节 ******************/
+void LED_DataIn595(u8 dat)
+{		
+	u8	i;
+	for(i=0; i<8; i++)
+	{
+		dat >>= 1;//先发低位
+		B_HC595_SER   = CY;
+		B_HC595_SRCLK = 0;
+		NOP2();
+		B_HC595_SRCLK = 1;
+	}
+}
+/**************** LED_HC595数据锁存******************/
+void LED_DataOut595()
+{		
+	B_HC595_RCLK = 0;
+	NOP2();
+	B_HC595_RCLK = 1;
+}
+void HC595_Display(void)//数组已经倒叙，正序扫描即可
+{
+	u16 i;
+	for(i=0;i<LED_StatByteSize;i++){
+		LED_DataIn595(LED_StatByte[i]);
+	}
+	LED_DataOut595();
+}
+#endif
 //========================================================================
 // 描述: 硬件初始化 。
 //========================================================================
@@ -278,7 +311,7 @@ void stc15x_hw_init(void)
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
 	P2n_standard(0xff);	//设置为准双向口
-	P3n_standard(0xff);	//设置为准双向口
+	//P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
 
@@ -307,10 +340,12 @@ void set_timer1_baudraye(u16 dat)
 	Timer1_InterruptDisable();  //禁止中断
 	Timer1_Run();      //Timer run enable
 }
-
+#define	BaudRate1		9600UL	//?????
+#define	Timer1_Reload	(65536UL -(MAIN_Fosc / 4 / BaudRate1))		//Timer 1 ???, ??300KHZ
 void uart1_config(void)
 {
 	/*********** 波特率使用定时器1 *****************/
+
 	S1_BRT_UseTimer1();//S1 BRT Use Timer1;
 	Timer1_16bitAutoReload(); //定时器1为模式0(16位自动重载)
 	set_timer1_baudraye(65536UL - (MAIN_Fosc / 4) / Baudrate1);
@@ -421,9 +456,9 @@ void main(void)
 {
 	u8 j,k;
 	CLR_Buf();//清除接收缓存
-	//Timer0_Stop();
+	Timer0_Stop();
 	Clear_WS2811();
-	//Timer0_Run();
+	Timer0_Run();
 	stc15x_hw_init();
 	B_HC595_MR = 1;//复位禁止
 	B_HC595_OE = 0;//使能芯片
@@ -457,14 +492,16 @@ void main(void)
 			Timer0_Stop();//保护WS2811发送数据，否则定时器会导致其闪烁
 #if defined(BOOL_WS2811_LED)
 			WS2811_Display();
+			Clear_LedStatByte();
 #else
 			for(k = 0;k < nWs;k++){
 				WS2811_SendByte(LED_Buff[k]);
 			}
+			Clear_LedBuff();
 #endif
 			WS2811_Reset();
 			Timer0_Run();
-			key_led_reverse();
+			//key_led_reverse();
 			Recv_Ok = 0;
 			k = 0;
 		}
@@ -516,6 +553,7 @@ void main(void)
 void timer0_int(void) interrupt TIMER0_VECTOR
 {
 //====================== 模拟串口接收程序 ========================================
+
 	if (RxStartFlag)			//已接收到起始位
 	{
 		if (--RxSample == 0)			//接收数据以定时器的1/3来接收
@@ -571,12 +609,12 @@ void timer0_int(void) interrupt TIMER0_VECTOR
 #if defined(BOOL_WS2811_LED)
 u8 Setbit1_InByte(u8 i,u8 ubyte)
 {
-	setbit(ubyte,7-i);
+	setbit(ubyte,i);
 	return ubyte;
 }
 u8 Setbit0_InByte(u8 i,u8 ubyte)
 {
-	clrbit(ubyte,7-i);
+	clrbit(ubyte,i);
 	return ubyte;
 }
 //========================================================================
@@ -590,35 +628,36 @@ u8 Setbit0_InByte(u8 i,u8 ubyte)
 //========================================================================
 void Write_LedStatBuff(u8 val,u16 i)
 {
-    u8 mu,yu;
-    mu = mod(i,8);
-    yu = rem(i,8);
+    u16 mu,yu;
+    mu = LED_StatByteSize-mod(i,8)-1;//倒叙填入数组
+    yu = rem(i,8);//0-7循环
     if(val > 0)
-		LED_StatByte[mu] = Setbit1_InByte(yu,LED_StatByte[mu]);
+			LED_StatByte[mu] = Setbit1_InByte(yu,LED_StatByte[mu]);
     else if(!val)
-		LED_StatByte[mu] = Setbit0_InByte(yu,LED_StatByte[mu]);
+			LED_StatByte[mu] = Setbit0_InByte(yu,LED_StatByte[mu]);
 	//printf("mu=%d,a = %d,LED_StatByte =%x\n",mu,yu,LED_StatByte[mu]);
 }
 void Clear_LedStatByte(void)
 {
 	u16 i;
-	for(i=0;i<nWs;i++)
+	for(i=0;i<LED_StatByteSize;i++)
 		LED_StatByte[i] = 0;
 }
 void WS2811_Display(void)
 {
 	u16 i;
-	u8 mu,yu,val;
-    mu = mod(i,8);
-    yu = rem(i,8);
-	for(i=0;i<nWs;i++){
-		val = getbit(LED_StatByte[mu],7-yu);
-		val ? 0xfe : 0x00; 
-		WS2811_SendByte(val);
-		//TxSend(TX_P31,val);
-	}		
+	u8 val,j;
+	for(i=0;i<LED_StatByteSize;i++){
+		for(j=0;j<8;j++){
+			val = LED_StatByte[LED_StatByteSize-i-1]&(0x01<<j);
+			if(val)
+				val = 0xfe;
+			else
+				val = 0x00; 
+			WS2811_SendByte(val);
+		}
+	}
 }
-
 #else
 //带灰度的LED 缓存
 void Clear_LedBuff(void)
@@ -631,30 +670,33 @@ void Clear_LedBuff(void)
 #if defined UART1_TIMER1
 void uart1_int (void) interrupt UART1_VECTOR
 {
+	u8 temp;
+	Timer0_Stop();
+
 	if(RI)//接收中断
 	{
 		RI = 0;
-		RxTimeOut = 105;
-		Rec_Buf[RX_CONT] = SBUF;                    //把串口1缓存SBUF寄存器数据依次存放到数组Rec_Buf2中
-		RX_CONT++; 
-		
-		if(SBUF==0x05)
+		temp = SBUF;
+		if(temp==0x05){
 			Recv_start = 1;
-		else if(SBUF==0xff){
+		}
+		else if(temp == 0xff){
 			Recv_start = 0;
-			Recv_Ok=1;
+			//key_led_reverse();
 #if defined(BOOL_WS2811_LED)
-			for(bool_led_count+1;bool_led_count<nWs;bool_led_count++)
-				Write_LedStatBuff(0,bool_led_count);//收到的LED路数小于nWs，自动补全0
+			//bool_led_count++;
+			//for(;bool_led_count<nWs;bool_led_count++)
+			//	Write_LedStatBuff(0,bool_led_count);//收到的LED路数小于nWs，自动补全0
 			bool_led_count = 0;
 #else	
-			while(led_stat_cont<nWs)
-				LED_Buff[led_stat_cont++] = 0;
+			//while(led_stat_cont<nWs)
+			//	LED_Buff[led_stat_cont++] = 0;
 			led_stat_cont = 0;
 #endif
+			Recv_Ok=1;
 		}
 		else if(Recv_start){ 
-#if defined(BOOL_WS2811_LED)
+#if defined(BOOL_WS2811_LED)	
 		Write_LedStatBuff(SBUF,bool_led_count++);//收到的状态转化成bit，填入缓存区，计数加1
 #else
 			LED_Buff[led_stat_cont] = SBUF ? SBUF : 0;
@@ -671,6 +713,7 @@ void uart1_int (void) interrupt UART1_VECTOR
 		TI = 0;
 		B_TX1_Busy = 0;
 	}
+	Timer0_Run();
 }
 #endif
 /********************* Timer2定时中断************************/
