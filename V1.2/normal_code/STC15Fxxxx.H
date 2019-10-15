@@ -702,10 +702,51 @@ sbit CF    = CCON^7;	//PCA¼ÆÊýÆ÷Òç³ö£¨CH£¬CLÓÉFFFFH±äÎª0000H£©±êÖ¾¡£PCA¼ÆÊýÆ÷Òç³
 
 
 /**********************************************************/
-typedef   bit BOOL;
-typedef 	unsigned char	u8;
-typedef 	unsigned int	u16;
-typedef 	unsigned long	u32;
+typedef     bit BOOL;
+typedef 	unsigned char	u8;						 /* ÎÞ·ûºÅ8Î»ÕûÐÍ±äÁ¿                        */
+typedef     signed   char  	int8;                    /* ÓÐ·ûºÅ8Î»ÕûÐÍ±äÁ¿                        */
+typedef 	unsigned int	u16;					 /* ÎÞ·ûºÅ16Î»ÕûÐÍ±äÁ¿                       */
+typedef     signed   int   	int16;                   /* ÓÐ·ûºÅ16Î»ÕûÐÍ±äÁ¿                       */
+typedef 	unsigned long	u32;					 /* ÎÞ·ûºÅ32Î»³¤ÕûÐÍ±äÁ¿      		         */
+typedef     signed   int   	int16;                   /* ÓÐ·ûºÅ16Î»ÕûÐÍ±äÁ¿                       */
+typedef     float         	fp32;                    /* µ¥¾«¶È¸¡µãÊý(32Î»³¤¶È)                   */
+typedef     double       	fp64;                    /* Ë«¾«¶È¸¡µãÊý(64Î»³¤¶È)                   */
+
+   /*----------------------------------------#define-----------------------------------*/
+   #ifndef TRUE
+   #define TRUE  				1
+   #endif
+
+   #ifndef FALSE
+   #define FALSE 				0
+   #endif
+
+   #ifndef NULL
+   #define NULL  				0
+   #endif
+
+   #ifndef uchar 
+   #define uchar unsigned char 
+   #endif
+   #ifndef uint 
+   #define uint unsigned int 
+   #endif
+
+   #define NO                   0
+   #define YES                  1
+
+
+   #define LOW                  0
+   #define HIGH                 1
+
+   #define ON                   1
+   #define OFF                  0
+   #define ENABLE               1
+   #define DISENABLE			0
+   #define MASTER				1
+   #define SLAVE				0
+   #define ONEWAY				0
+   #define TWOWAY				1
 
 /**********************************************************/
 #define NOP1()  _nop_()

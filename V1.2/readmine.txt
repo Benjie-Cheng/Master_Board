@@ -18,3 +18,8 @@ normal_code
 https://blog.csdn.net/qq_38405680/article/details/80412135
 20191014_20:06
 
+增加环形缓冲队列模型
+http://news.eeworld.com.cn/mcu/article_2018061039733.html
+20191015_16:02
+
+
