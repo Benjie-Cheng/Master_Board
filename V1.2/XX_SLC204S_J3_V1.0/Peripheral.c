@@ -25,6 +25,13 @@ unsigned int  uiKeyTimeCnt2=0; //按键去抖动延时计数器
 unsigned char ucKeyLock2=0; //按键触发后自锁的变量标志
 unsigned char ucShortTouchFlag2=0; //短按的触发标志
 
+unsigned int  uiKeyTimeCnt3=0; //按键去抖动延时计数器
+unsigned char ucKeyLock3=0; //按键触发后自锁的变量标志
+unsigned char ucShortTouchFlag3=0; //短按的触发标志
+
+unsigned int  uiKeyTimeCnt4=0; //按键去抖动延时计数器
+unsigned char ucKeyLock4=0; //按键触发后自锁的变量标志
+unsigned char ucShortTouchFlag4=0; //短按的触发标志
 /****************向HC595发送一个字节函数 ******************/
 void vDataIn595(u8 dat)
 {		
@@ -100,6 +107,60 @@ void vTaskKeySan(void)
 			ucKeySec=4;    //触发2号键的长按		
 		}
 	}	
+
+	if(OK_key==1)//IO是高电平，说明两个按键没有全部被按下，这时要及时清零一些标志位
+	{
+		ucKeyLock3=0; //按键自锁标志清零
+		uiKeyTimeCnt3=0;//按键去抖动延时计数器清零   
+		if(ucShortTouchFlag3==1)  //短按触发标志
+		{
+			ucShortTouchFlag3=0;
+			ucKeySec=5;    //触发2号键的短按
+		}
+	}
+	else if(ucKeyLock3==0)//有按键按下，且是第一次被按下
+	{
+		uiKeyTimeCnt3++; //累加定时中断次数
+		if(uiKeyTimeCnt3>const_key_time_short)
+		{
+			ucShortTouchFlag3=1;   //激活按键短按的有效标志  
+		}
+	
+		if(uiKeyTimeCnt3>const_key_time_long)
+		{
+			ucShortTouchFlag3=0;  //清除按键短按的有效标志
+			uiKeyTimeCnt3=0;
+			ucKeyLock3=1;  //自锁按键置位,避免一直触发	
+			ucKeySec=6;    //触发2号键的长按		
+		}
+	}	
+	
+	if(Del_Key==1)//IO是高电平，说明两个按键没有全部被按下，这时要及时清零一些标志位
+	{
+		ucKeyLock4=0; //按键自锁标志清零
+		uiKeyTimeCnt4=0;//按键去抖动延时计数器清零   
+		if(ucShortTouchFlag4==1)  //短按触发标志
+		{
+			ucShortTouchFlag4=0;
+			ucKeySec=7;    //触发2号键的短按
+		}
+	}
+	else if(ucKeyLock4==0)//有按键按下，且是第一次被按下
+	{
+		uiKeyTimeCnt4++; //累加定时中断次数
+		if(uiKeyTimeCnt4>const_key_time_short)
+		{
+			ucShortTouchFlag4=1;   //激活按键短按的有效标志  
+		}
+	
+		if(uiKeyTimeCnt4>const_key_time_long)
+		{
+			ucShortTouchFlag4=0;  //清除按键短按的有效标志
+			uiKeyTimeCnt4=0;
+			ucKeyLock4=1;  //自锁按键置位,避免一直触发	
+			ucKeySec=8;    //触发2号键的长按		
+		}
+	}
 }
 /*
 void vKey_Service(void) //按键服务的应用程序
