@@ -22,4 +22,7 @@ https://blog.csdn.net/qq_38405680/article/details/80412135
 http://news.eeworld.com.cn/mcu/article_2018061039733.html
 20191015_16:02
 
+添加：XX_SLC204S_J3_V1.0 初版文件，暂未调试
+2019年10月17日 11:22:22
+
 
