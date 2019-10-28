@@ -183,7 +183,7 @@ void TaskRTC(void)//10ms once
 	
 	Temp = hour * 60 + minu;
 	
-	if(rtc_conut == 50)
+	if(rtc_conut == 50)//50*10ms
 		Fash_DisplayFlag = ~Fash_DisplayFlag;//闪烁标记
 	
 	if(++rtc_conut > 100){//1000ms 减一分钟
@@ -256,6 +256,12 @@ void TaskDisplayScan(void)
 	for(display_index = 0;display_index < INDEX_MAX;display_index++){
 		//DisplayChange();//赋值缓存数值，并改变数码管com位
 		ComX_Set(1,display_index);//com 口扫描，点亮该位
+#if 0
+	nop();
+	nop();
+	ComX_Set(0,display_index);//改变亮度
+	nop();
+#endif		
 		Display_Code[0] = LED8[display_index];
 										//送显即可
 		vDataIn595(Display_Code[1]);	//输出位码+继电器+LED
@@ -324,7 +330,8 @@ void vKey_Service(void) //按键服务的应用程序
 				ucKeySec=0;  
 			break;
 		case 5:// OK键的短按
-			Reset_Work = TRUE;
+			Reset_Work = TRUE;//短按复位
+			ucKeySec=0;
 			break;
 		case 6:// OK键的长按
 			Write_Eeprom();//EEPROM 写参数
