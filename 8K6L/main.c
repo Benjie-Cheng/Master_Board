@@ -88,7 +88,7 @@ sbit	A_HC595_OE    = P5^4;	//pin 54	OE 		低电平 使能enable pin
 sbit	A_HC595_MR    = P3^6;	//pin 36	低电平复位	
 
 
-static u8 Display_Code[2]={0x00,0x00};//两个595数据。
+static u8 Display_Code[3]={0x00,0x00,0x00};//两个595数据。
 
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
@@ -180,6 +180,17 @@ void vDataOut595()
 	NOP2();
 	A_HC595_RCLK = 1;
 }
+void Kled_Set(BOOL en,u8 Kled)
+{
+	u8 val;
+	val = Display_Code[0];
+	if(en)
+		Display_Code[0] = setbit(val,Kled);//高电平导通
+	else
+		Display_Code[0] = clrbit(val,Kled);	
+	if(0xff == Kled)	
+		Display_Code[0] &= 0x00;
+}
 void Nmos_Set(BOOL en,u8 Nmos)
 {
 	u8 val;
@@ -189,7 +200,8 @@ void Nmos_Set(BOOL en,u8 Nmos)
 	else
 		Display_Code[1] = clrbit(val,Nmos);	
 	if(0xff == Nmos)	
-		Display_Code[1] &= 0x80;
+		Display_Code[1] &= 0x40;
+	Display_Code[2] =Display_Code[1];
 }
 /*****************************************************
 	行列键扫描程序
@@ -373,15 +385,16 @@ void main(void)
 			if(++msecond >= 1000)	//1秒到
 			{	
 				msecond = 0;
-				Display_Code[1]=reversebit(Display_Code[1],7);
+				Display_Code[1]=reversebit(Display_Code[1],6);
 			}
 		  if(++cnt50ms >= 50)		//50ms扫描一次行列键盘
 			{
 				cnt50ms = 0;
 		#if defined GPIO_KEY64_BOARD
 				//Gpio_Keyscan();
+				vDataIn595(Display_Code[2]);
 				vDataIn595(Display_Code[1]);
-				vDataIn595(Display_Code[1]);
+				vDataIn595(Display_Code[0]);
 				vDataOut595();
 		#endif
 			}
@@ -409,7 +422,7 @@ void main(void)
 			*/
 			if(KeyCode > 0)		//有键按下
 			{	
-					//Nmos_Set(0,6);//debug led
+					//Nmos_Set(0,7);//debug led
 					switch(KeyCode)
 					{		
 						case 0x10:
@@ -435,6 +448,7 @@ void main(void)
 							break;	
 						case 0x17:
 							vGu8Key8_lock = 1;
+							Kled_Set(0,0xff);
 							break;	
 						default:
 							break;
@@ -588,9 +602,10 @@ void Key1_Fun(void)
 	{
 		KeyCode = 0;
 		case 0:
+			Kled_Set(1,0);//turn on led
 			//vGu8Key1_lock = 1;//按键上锁
 			vGu8TimeFlag_1 = 1;//定时器运行置位
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
 			Nmos_Set(1,0);
 			Nmos_Set(1,1);
 			Nmos_Set(1,2);
@@ -610,10 +625,11 @@ void Key1_Fun(void)
 				Gu8Step++;
 			break;
 		case 2:
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
 			Gu8Step = 0;//step 清0
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key1_lock = 0;//解按键锁
+			Kled_Set(0,0);//turn off led
 			break;	
 		default:
 		
@@ -626,7 +642,8 @@ void Key2_Fun(void)
 	{
 		KeyCode = 0;
 		case 0:
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
+			Kled_Set(1,1);//turn on led
 			//vGu8Key2_lock=1;//按键上锁
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			Nmos_Set(1,0);
@@ -699,9 +716,10 @@ void Key2_Fun(void)
 			break;
 		case 12:
 			Gu8Step = 0;//step 清0
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key2_lock = 0;//解按键锁
+			Kled_Set(0,1);//turn off led
 			break;
 		default:	
 			break;
@@ -713,7 +731,8 @@ void Key3_Fun(void)
 	{
 		KeyCode = 0;
 		case 0:
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
+			Kled_Set(1,2);//turn on led
 			//vGu8Key3_lock=1;//按键上锁
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			Nmos_Set(1,0);
@@ -779,9 +798,10 @@ void Key3_Fun(void)
 			vGu8Key3_lock = 0;//解按键锁
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			Gu8Step = 0;//step 清0
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key3_lock = 0;//解按键锁
+			Kled_Set(0,2);//turn off led
 			break;
 		default:	
 			break;
@@ -794,8 +814,9 @@ void Key4_Fun(void)
 	{
 		KeyCode = 0;
 		case 0:
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
 			vGu8Key4_lock=1;//按键上锁
+			Kled_Set(1,3);//turn on led
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			Nmos_Set(1,0);
 			Nmos_Set(1,1);
@@ -847,9 +868,10 @@ void Key4_Fun(void)
 			break;
 		case 8:
 			Gu8Step = 0;//step 清0
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key4_lock = 0;//解按键锁
+			Kled_Set(0,3);//turn off led
 			break;
 		default:	
 			break;
@@ -861,7 +883,8 @@ void Key5_Fun(void)
 	{
 		KeyCode = 0;
 		case 0:
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
+			Kled_Set(1,4);//turn on led
 			//vGu8Key5_lock=1;//按键上锁
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			Nmos_Set(1,0);
@@ -904,7 +927,8 @@ void Key5_Fun(void)
 			break;
 		case 6:
 			Gu8Step = 0;//step 清0
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
+			Kled_Set(0,4);//turn off led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key5_lock = 0;//解按键锁		
 			break;
@@ -919,7 +943,8 @@ void Key6_Fun(void)
 		KeyCode = 0;
 		case 0:
 			//vGu8Key6_lock=1;//按键上锁
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
+			Kled_Set(1,5);//turn on led
 			vGu8TimeFlag_1 = 1;//定时器运行置位	
 			Nmos_Set(1,0);
 			Nmos_Set(0,1);
@@ -953,9 +978,10 @@ void Key6_Fun(void)
 			vGu8Key6_lock = 0;//解按键锁
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			Gu8Step = 0;//step 清0
-			//Nmos_Set(1,6);//debug led
+			//Nmos_Set(1,7);//debug led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key6_lock = 0;//解按键锁
+			Kled_Set(0,5);//turn off led
 			break;
 		default:	
 			break;
@@ -968,7 +994,8 @@ void Key7_Fun(void)
 		KeyCode = 0;
 		case 0:
 			//vGu8Key7_lock=1;//按键上锁
-			Nmos_Set(1,6);//debug led
+			Nmos_Set(1,7);//debug led
+			Kled_Set(1,6);//turn on led
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			Nmos_Set(0,0);
 			Nmos_Set(0,1);
@@ -980,10 +1007,10 @@ void Key7_Fun(void)
 				Gu8Step++;
 			break;
 		case 1:
-			//Nmos_Set(1,6);//debug led
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key7_lock = 0;//解按键锁
-			Gu8Step = 0;//step 清0			
+			Gu8Step = 0;//step 清0
+			Kled_Set(0,6);//turn off led		
 			break;
 		default:	
 			break;
@@ -997,7 +1024,8 @@ void Key8_Fun(void)
 		KeyCode = 0;
 		case 0:
 			Nmos_Set(1,0xff);//全部关闭
-			Nmos_Set(0,6);//debug led
+			Nmos_Set(0,7);//debug led
+			Kled_Set(1,7);//turn on led
 			vGu8TimeFlag_1 = 1;//定时器运行置位
 			//print_char(0x22);
 			if(LED_TIME_60S<=vGu16TimeCnt_1) //60s时间到
@@ -1015,7 +1043,8 @@ void Key8_Fun(void)
 			KeyCode = 0;
 			vGu8TimeFlag_1 = 0;//清定时器运行标志
 			vGu8Key8_lock = 0;//解按键锁
-			Gu8Step = 0;//step 清0			
+			Gu8Step = 0;//step 清0	
+			Kled_Set(0,7);//turn off led				
 			break;
 		default:	
 			break;
