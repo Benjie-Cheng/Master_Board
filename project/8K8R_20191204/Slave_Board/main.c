@@ -30,7 +30,7 @@ v1.1：
 #define	Baudrate1	115200UL                                //通信波特率115200
 
 #define KEY_LED_GPIO P55
-
+#define KEY_BOARD_GPIO_Y P2
 	#define ON       1
 	#define OFF      0
 	#define ON_ALL   0xff
@@ -58,20 +58,19 @@ BOOL B_TX1_Busy;  //发送忙标志
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
 
-#define	UART1_TX_LENGTH 10
+#define	UART1_TX_LENGTH 11
 static u8 Display_Code[1]={0x00};//1个595控制按键板LED灯。
-static u8 To_Marster_Data[UART1_TX_LENGTH]={0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff};//主控板继电器开关状态，帧头0x01,帧尾0xff;
+static u8 To_Marster_Data[UART1_TX_LENGTH]={0x05,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,'*'};//主控板继电器开关状态，帧头0x01,帧尾0xff;
 
 /********************** 8*8矩阵键盘 ************************/
 
-u8	KeyCode= 0xff;	//给用户使用的键码	
-
+static u8 KeyCode= 0x00;	//给用户使用的键码	
+static u8 Key8_status = 0;
 
 //“软件定时器 1” 的相关变量
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile unsigned int vGu16TimeCnt_1=0;
 BOOL flash_flag = TRUE;
-#define KEY8_VAL 0x17
 
 
 #define KEY_FILTER_TIME 50 //按键滤波的“ 稳定时间” 50ms
@@ -84,13 +83,11 @@ sbit	A_HC595_OE    = P5^4;	//pin 54	OE 		低电平 使能enable pin
 sbit	A_HC595_MR    = P3^6;	//pin 36	低电平复位	
 
 
-static u8 Display_Code[3]={0x00,0x00,0x00};//两个595数据。
-
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
-
+int Get_KeyVal(int val);
 //========================================================================
 // 描述: u8 ms延时函数。
 //========================================================================
@@ -200,20 +197,20 @@ void gpio_key_delay(void)
 }
 
 
-void Kled_Set(BOOL en,u8 Kled)
+void Kled_Set(int status,u8 Nled)
 {
 	u8 val;
 	val = Display_Code[0];
-	if(en)
-		Display_Code[0] = setbit(val,Kled);//高电平导通
-	else
-		Display_Code[0] = clrbit(val,Kled);	
-	if(ON_ALL == Kled)	
+	if(status==ON)
+		Display_Code[0] = setbit(val,Nled);//高电平导通
+	else if(status==OFF)
+		Display_Code[0] = clrbit(val,Nled);	
+	else if(ON_ALL == status)	
 		Display_Code[0] = 0xff;
-	else if(OFF_ALL == Kled)
+	else if(OFF_ALL == status)
 		Display_Code[0] = 0x00;
-	else if(ON_OFF == Kled)
-		Display_Code[0] = reversebit(val,Kled);//翻转
+	else if(OFF_ON == status)
+		Display_Code[0] = reversebit(val,Nled);//翻转
 }
 
 void Gpio_Keyscan(void)	//50ms call
@@ -226,7 +223,8 @@ void Gpio_Keyscan(void)	//50ms call
 		Su8KeyLock1=0; //按键解锁
 		Su16KeyCnt1=0; //按键去抖动延时计数器清零
 		flash_flag = TRUE;
-		key_led_on(FALSE);//熄灭按键提示led
+		if(!flash_flag)
+			key_led_on(FALSE);//熄灭按键提示led
 	}
 	else if(0==Su8KeyLock1)
 	{
@@ -275,17 +273,20 @@ int Get_KeyVal(int val)
 }
 int Get_Led8Set(void)
 {
-	u8 temp;
-	temp = 0x7f&Display_Code[0];
-	if(temp == 0x7f)
+	static u8 temp = 0;
+	temp = Display_Code[0];
+	if((temp == 0x80) || (temp == 0x00))
 		return 1;
+	else if((temp == 0x7f) || (temp ==0xff))
+		return 2;
 	else 
 		return 0;
 	
 }
 void Date_EventProcess(void)
-{	
+{
 	u8 i=0;
+
 	for(i=0;i<8;i++)
 	{
 		if(getbit(Display_Code[0],i))
@@ -293,43 +294,39 @@ void Date_EventProcess(void)
 		else
 			To_Marster_Data[i+1] = 0x00;
 	}
-	puts_to_SerialPort(To_Marster_Data);
+	print_string(To_Marster_Data);
 }
-void Key_EventProcess(void)
+void Key_EventProcess(int KeyCode)
 {
-	static u8 temp;
-	static u8 Key8_status = 0;
-	temp = Get_KeyVal(KeyCode);
-	switch(temp){
-		
+	switch(KeyCode){
 	case KEY1_VAL:
-			Kled_Set(OFF_ON,0);//翻转状态
+		Kled_Set(OFF_ON,0);//翻转状态
 		break;
 	case KEY2_VAL:
-			Kled_Set(OFF_ON,1);
-			break;
+		Kled_Set(OFF_ON,1);
+		break;
 	case KEY3_VAL:
-			Kled_Set(OFF_ON,2);
-			break;
+		Kled_Set(OFF_ON,2);
+		break;
 	case KEY4_VAL:
-			Kled_Set(OFF_ON,3);
-			break;
+		Kled_Set(OFF_ON,3);
+		break;
 	case KEY5_VAL:
-			Kled_Set(OFF_ON,4);
-			break;
+		Kled_Set(OFF_ON,4);
+		break;
 	case KEY6_VAL:
-			Kled_Set(OFF_ON,5);
-			break;
+		Kled_Set(OFF_ON,5);
+		break;
 	case KEY7_VAL:
-			Kled_Set(OFF_ON,6);
-			break;
+		Kled_Set(OFF_ON,6);
+		break;
 	case KEY8_VAL:
 		Key8_status ++;
 		if(Display_Code[0]==0xff){
 			Kled_Set(OFF_ALL,7);//全灭
 			Key8_status = 0;
 		}
-		else if(mod(Key8_status,2))
+		else if(rem(Key8_status,2))
 		{
 			Kled_Set(ON_ALL,7);//全亮
 		}
@@ -341,24 +338,32 @@ void Key_EventProcess(void)
 			Key8_status = 0;
 		break;
 	default:
-	
-		break;
-		
-		if(Get_Led8Set())//1-7全亮时,8亮
-		{
-			Kled_Set(ON,7);//8灯亮
-		}	
-		else
-		{
-			Kled_Set(OFF,7);//8灯灭
-		}
+		break;	
 	}
+
+	if(Get_Led8Set()==1)//1-7灭时,8灭
+	{
+		Key8_status = 0;
+		Kled_Set(OFF,7);//8灯灭
+	}	
+	else if(Get_Led8Set()==2)//1-7亮时,8亮
+	{
+		Kled_Set(ON,7);//8灯灭
+		Key8_status = 1;
+	}
+	else
+	{
+		Kled_Set(OFF,7);//8灯灭
+		//Key8_status = 0;
+	}
+	vDataIn595(Display_Code[0]);
+	vDataOut595();
 	if(KeyCode){
-		vDataIn595(Display_Code[0]);
-		vDataOut595();
+		
 		Date_EventProcess();//按键值转换成发给主机格式的值并串口发送;
 		KeyCode = 0;//清除按键触发值
 	}
+
 }
 //========================================================================
 // 函数: void main(void)
@@ -388,9 +393,10 @@ void main(void)
 			{
 				cnt50ms = 0;
 			}
-			Key_EventProcess();
+			Key_EventProcess(KeyCode);
 			if(KeyCode > 0)		//有键按下
 			{		
+				KeyCode = 0;
 			}			
 		}
 	}
