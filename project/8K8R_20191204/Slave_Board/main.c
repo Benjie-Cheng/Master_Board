@@ -7,12 +7,13 @@
 /* Èç¹ûÒªÔÚ³ÌĞòÖĞÊ¹ÓÃ´Ë´úÂë,ÇëÔÚ³ÌĞòÖĞ×¢Ã÷Ê¹ÓÃÁË°æÈ¨ ---------------   */
 /*---------------------------------------------------------------------*/
 /*************	±¾³ÌĞò¹¦ÄÜËµÃ÷	**************
+8K8R:8¸ökey¿ØÖÆ8¸öRelay£¬¾ßÌå¹¦ÄÜ¼ûspec
 
-ÓÃSTCµÄMCUµÄIO·½Ê½¾ØÕó¼üÅÌºÍ´®¿ÚÊÕ·¢Êı¾İ¡£
-1¡¢8*8 ¾ØÕó¼üÅÌ¼ì²â¶ÔÓ¦¼ÌµçÆ÷µÄ°´¼üÊäÈë¡££¬°´Ò»´Î×´Ì¬·­×ªÒ»´Î¡£
-2¡¢´®¿Ú½«É¨Ãèµ½µÄ¼üÖµ·¢ËÍµ½Ö÷»ú£¬Ö÷»ú·´À¡µ±Ç°¼ÌµçÆ÷Í¨¶Ï×´Ì¬¸ø´Ó»ú¡£
-3¡¢´Ó»ú¸ù¾İÖ÷»ú½ÓÊÕµ½µÄÊı¾İ£¬Í¨¹ı74HC595¿ØÖÆLED,Ö¸Ê¾Í¨µÀ¿ª¹Ø×´Ì¬¡£
-4¡¢ÓĞ°´¼ü°´ÏÂÊ±ÓĞÒ»¿Å¹«ÓÃµÄLEDÖ¸Ê¾°´¼ü´¥·¢
+ÓÃSTCµÄMCUµÄIO·½Ê½¾ØÕó¼üÅÌ½»»¥ºÍ´®¿ÚÊÕ·¢Êı¾İ¡£
+1¡¢8*8 ¾ØÕó¼üÔİÊ±Ö»µ÷ÊÔ²¢ÓÃÁËÒ»ĞĞ¡£
+2¡¢°´¼ü°åÓĞ°´¼ü´¥·¢Ê±£¬´®¿Ú·¢ËÍK1-K8°´¼ü¿ØÖÆµÄled ×´Ì¬¸øÖ÷»ú¡£Ö÷»úÔİÊ±ÎŞ·´À¡×´Ì¬¸ø´Ó»ú£¨µô°üÊ±×´Ì¬»á´íÂÒ£¬µ«ÊÇ´ÓĞÂ°´Ò»´ÎÄÜ»Ö¸´£©¡£
+3¡¢´Ó»ú¸ù¾İ°´¼üÖµ£¬Í¨¹ı74HC595¿ØÖÆ°åÉÏLED×´Ì¬¡£
+4¡¢ÓĞ°´¼ü°´ÏÂÊ±ÓĞÒ»¿Å¹«ÓÃµÄLEDÖ¸Ê¾ÁÁ£¬ËÉÊÖÃğ£¬²»°´Ê±Õı³£1HzÉÁË¸¡£
 
 ´æÔÚÈ±Ïİ£º
 1¡¢8*8¼üÅÌµÄLEDµÆÔÚ°´¼üÓÒ²à£¬Ã¿´Î°´ÏÂ¾ù±»ÊÖÖ¸ÕÚµ²£¬ÄÑÒÔ·Ö±æ¼ÌµçÆ÷×´Ì¬¡£¸ÄÔÚÓÒ²à»òÕßÉÏ²à¡£
@@ -26,10 +27,24 @@ v1.1£º
 #include "debug.h"
 
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 ÖĞ¶ÏÆµÂÊ, 1000´Î/Ãë
-#define	Baudrate1	9600UL                                //Í¨ĞÅ²¨ÌØÂÊ115200
+#define	Baudrate1	115200UL                                //Í¨ĞÅ²¨ÌØÂÊ115200
 
-#define GPIO_KEY64_BOARD
 #define KEY_LED_GPIO P55
+
+	#define ON       1
+	#define OFF      0
+	#define ON_ALL   0xff
+	#define OFF_ALL  0xfe
+	#define OFF_ON   0xfd
+	#define KEY1_VAL 0x10
+	#define KEY2_VAL 0x11
+	#define KEY3_VAL 0x12
+	#define KEY4_VAL 0x13
+	#define KEY5_VAL 0x14
+	#define KEY6_VAL 0x15
+	#define KEY7_VAL 0x16
+	#define KEY8_VAL 0x17
+	
 //========================================================================
 /*************	±¾µØ±äÁ¿ÉùÃ÷	**************/
 /********************** ¹«ÓÃÁ¿ ************************/
@@ -38,45 +53,26 @@ u16	msecond; //1s¼ÆÊı
 u8 cnt50ms;  //50ms¼ÆÊı
 u8 cnt10ms;  //10ms¼ÆÊı
 BOOL B_TX1_Busy;  //·¢ËÍÃ¦±êÖ¾
+
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //½ÓÊÕ´®¿Ú1»º´æÊı×é
 u8 RX_CONT = 0; 
+
+#define	UART1_TX_LENGTH 10
+static u8 Display_Code[1]={0x00};//1¸ö595¿ØÖÆ°´¼ü°åLEDµÆ¡£
+static u8 To_Marster_Data[UART1_TX_LENGTH]={0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff};//Ö÷¿Ø°å¼ÌµçÆ÷¿ª¹Ø×´Ì¬£¬Ö¡Í·0x01,Ö¡Î²0xff;
+
 /********************** 8*8¾ØÕó¼üÅÌ ************************/
-#if defined GPIO_KEY64_BOARD
-#define KEY_BOARD_GPIO_X P1
-#define KEY_BOARD_GPIO_Y P2
-u8 code Line_KeyTable[]={0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80};	//ÏßĞĞÂë
-u8 IO_KeyState =0,IO_KeyState_x =0,IO_KeyState_y =0,IO_KeyState_old = 0xff;	//ĞĞÁĞ¼üÅÌ±äÁ¿
-u8	KeyCode= 0xff;	//¸øÓÃ»§Ê¹ÓÃµÄ¼üÂë, 0~63ÓĞĞ§
-#endif
+
+u8	KeyCode= 0xff;	//¸øÓÃ»§Ê¹ÓÃµÄ¼üÂë	
 
 
 //¡°Èí¼ş¶¨Ê±Æ÷ 1¡± µÄÏà¹Ø±äÁ¿
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile unsigned int vGu16TimeCnt_1=0;
-#define LED_TIME_3S  3000  //Ê±¼äÊÇ 3000ms
-#define LED_TIME_7S  7000  //Ê±¼äÊÇ 3000ms
-#define LED_TIME_10S 10000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_15S 15000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_18S 18000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_23S 23000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_26S 26000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_31S 31000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_34S 34000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_39S 39000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_42S 42000 //Ê±¼äÊÇ 3000ms
-#define LED_TIME_60S 60000 //Ê±¼äÊÇ 3000ms
+BOOL flash_flag = TRUE;
 #define KEY8_VAL 0x17
 
-static u8 Gu8Step = 0; //Èí¼ş¶¨Ê±Æ÷ 1 µÄ switch ÇĞ»»²½Öè
-static u8 vGu8Key1_lock = 0;
-static u8 vGu8Key2_lock = 0;
-static u8 vGu8Key3_lock = 0;
-static u8 vGu8Key4_lock = 0;
-static u8 vGu8Key5_lock = 0;
-static u8 vGu8Key6_lock = 0;
-static u8 vGu8Key7_lock = 0;
-static u8 vGu8Key8_lock = 0;
 
 #define KEY_FILTER_TIME 50 //°´¼üÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± 50ms
 
@@ -94,15 +90,7 @@ void uart1_config();	// Ñ¡Ôñ²¨ÌØÂÊ, 2: Ê¹ÓÃTimer2×ö²¨ÌØÂÊ, ÆäËüÖµ: Ê¹ÓÃTimer1×ö²
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
-void Key1_Fun(void);
-void Key2_Fun(void);
-void Key3_Fun(void);
-void Key4_Fun(void);
-void Key5_Fun(void);
-void Key6_Fun(void);
-void Key7_Fun(void);
-void Key8_Fun(void);
-int Check_KeyStatus(void);
+
 //========================================================================
 // ÃèÊö: u8 msÑÓÊ±º¯Êı¡£
 //========================================================================
@@ -180,29 +168,7 @@ void vDataOut595()
 	NOP2();
 	A_HC595_RCLK = 1;
 }
-void Kled_Set(BOOL en,u8 Kled)
-{
-	u8 val;
-	val = Display_Code[0];
-	if(en)
-		Display_Code[0] = setbit(val,Kled);//¸ßµçÆ½µ¼Í¨
-	else
-		Display_Code[0] = clrbit(val,Kled);	
-	if(0xff == Kled)	
-		Display_Code[0] &= 0x00;
-}
-void Nmos_Set(BOOL en,u8 Nmos)
-{
-	u8 val;
-	val = Display_Code[1];
-	if(en)
-		Display_Code[1] = setbit(val,Nmos);//¸ßµçÆ½µ¼Í¨Èı¼«¹Ü£¬Mos¹Ü¹¤×÷
-	else
-		Display_Code[1] = clrbit(val,Nmos);	
-	if(0xff == Nmos)	
-		Display_Code[1] &= 0x40;
-	Display_Code[2] =Display_Code[1];
-}
+
 /*****************************************************
 	ĞĞÁĞ¼üÉ¨Ãè³ÌĞò
 	Ê¹ÓÃXY²éÕÒ8x8¼üµÄ·½·¨£¬Ö»ÄÜµ¥¼ü£¬ËÙ¶È¿ì
@@ -226,81 +192,54 @@ P06 -- K48 - K49 - K50 - K51 - K52 - K53 - K54 - K55
         |     |     |     |     |     |     |     |
 P07 -- K56 - K57 - K58 - K59 - K60 - K61 - K62 - K63
 ******************************************************/
-#if defined GPIO_KEY64_BOARD
 void gpio_key_delay(void)
 {
 	u8 i;
 	i = 60;
 	while(--i)	;
 }
-u16 compose(u8 x,u8 y)
+
+
+void Kled_Set(BOOL en,u8 Kled)
 {
-	u16 val;
-	val = y;
-	return (val<<8) | x;
-}	
-u8 val_to_line(u8 key_val)
-{
-	u8 val = 0,i;
-	
-	for(i=0;i<8;i++)
-	{
-		if(key_val == Line_KeyTable[i])
-			val = i;
-	}
-	return val;
+	u8 val;
+	val = Display_Code[0];
+	if(en)
+		Display_Code[0] = setbit(val,Kled);//¸ßµçÆ½µ¼Í¨
+	else
+		Display_Code[0] = clrbit(val,Kled);	
+	if(ON_ALL == Kled)	
+		Display_Code[0] = 0xff;
+	else if(OFF_ALL == Kled)
+		Display_Code[0] = 0x00;
+	else if(ON_OFF == Kled)
+		Display_Code[0] = reversebit(val,Kled);//·­×ª
 }
 
-#if 0
 void Gpio_Keyscan(void)	//50ms call
-{
-	u16	j,x,y;
-	
-	x = val_to_line(IO_KeyState_x);			
-	y = val_to_line(IO_KeyState_y);
-	j = x * 8 + y + 16;
-	
-	KEY_BOARD_GPIO_Y = 0xff;
-	KEY_BOARD_GPIO_X = 0x00;	//XµÍ£¬¶ÁY
-	gpio_key_delay();
-	IO_KeyState_y = KEY_BOARD_GPIO_Y & 0xff;
-	
-	KEY_BOARD_GPIO_X =0xff;
-	KEY_BOARD_GPIO_Y = 0x00;	//YµÍ£¬¶ÁX
-	gpio_key_delay();
-	IO_KeyState_x= KEY_BOARD_GPIO_X & 0xff;
-	
-	IO_KeyState_x ^= 0xff;	//È¡·´
-	IO_KeyState_y ^= 0xff;	//È¡·´
-	
-
-#if 1
-	x = val_to_line(IO_KeyState_x);			
-	y = val_to_line(IO_KeyState_y);
-	//print_char(x);
-	//print_char(y);
-	IO_KeyState = x * 8 + y + 16;	//¼ÆËã¼üÂë£¬(0~63) +16
-#endif
-	if(!IO_KeyState_x && !IO_KeyState_y){
-		IO_KeyState_old = 0;
+{	
+	static unsigned char Su8KeyLock1; //1 ºÅ°´¼üµÄ×ÔËø
+	static unsigned int Su16KeyCnt1; //1 ºÅ°´¼üµÄ¼ÆÊ±Æ÷
+	P10 = 0;
+	if(KEY_BOARD_GPIO_Y==0xff)
+	{
+		Su8KeyLock1=0; //°´¼ü½âËø
+		Su16KeyCnt1=0; //°´¼üÈ¥¶¶¶¯ÑÓÊ±¼ÆÊıÆ÷ÇåÁã
+		flash_flag = TRUE;
 		key_led_on(FALSE);//Ï¨Ãğ°´¼üÌáÊ¾led
 	}
-	else //if(j == IO_KeyState)	//Á¬ĞøÁ½´Î¶ÁÏàµÈ
+	else if(0==Su8KeyLock1)
 	{
-		if(IO_KeyState != 0 &&(IO_KeyState_old != IO_KeyState))	//ÓĞ¼ü°´ÏÂ
+		Su16KeyCnt1++; //ÀÛ¼Ó¶¨Ê±ÖĞ¶Ï´ÎÊı
+		if(Su16KeyCnt1>=KEY_FILTER_TIME) //ÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± KEY_FILTER_TIME£¬ ³¤¶ÈÊÇ 50ms¡£
 		{
-			IO_KeyState_old = IO_KeyState;
-			x = val_to_line(IO_KeyState_x);			
-			y = val_to_line(IO_KeyState_y);
-			KeyCode = x * 8 + y + 16;	//¼ÆËã¼üÂë£¬(0~63) +16
-			print_char(KeyCode);
-		}
-			key_led_on(TRUE);//Ï¨Ãğ°´¼üÌáÊ¾led
+			Su8KeyLock1=1; //°´¼üµÄ×ÔËø,±ÜÃâÒ»Ö±´¥·¢
+			key_led_on(TRUE);//°´¼üÌáÊ¾led
+			flash_flag = FALSE;
+			KeyCode = Get_KeyVal(KEY_BOARD_GPIO_Y);
+		}		
 	}
-	KEY_BOARD_GPIO_X = 0xff;
-	KEY_BOARD_GPIO_Y = 0xff;
-}
-#else
+}	
 int Get_KeyVal(int val)
 {
 	int temp;
@@ -334,35 +273,93 @@ int Get_KeyVal(int val)
 	}
 	return temp;
 }
-void Gpio_Keyscan(void)	//50ms call
+int Get_Led8Set(void)
+{
+	u8 temp;
+	temp = 0x7f&Display_Code[0];
+	if(temp == 0x7f)
+		return 1;
+	else 
+		return 0;
+	
+}
+void Date_EventProcess(void)
 {	
-	static unsigned char Su8KeyLock1; //1 ºÅ°´¼üµÄ×ÔËø
-	static unsigned int Su16KeyCnt1; //1 ºÅ°´¼üµÄ¼ÆÊ±Æ÷
-
-		P10 = 0;
-		if(KEY_BOARD_GPIO_Y==0xff)
-		{
-			Su8KeyLock1=0; //°´¼ü½âËø
-			Su16KeyCnt1=0; //°´¼üÈ¥¶¶¶¯ÑÓÊ±¼ÆÊıÆ÷ÇåÁã
-			key_led_on(FALSE);//Ï¨Ãğ°´¼üÌáÊ¾led
+	u8 i=0;
+	for(i=0;i<8;i++)
+	{
+		if(getbit(Display_Code[0],i))
+			To_Marster_Data[i+1] = 0xfe;
+		else
+			To_Marster_Data[i+1] = 0x00;
+	}
+	puts_to_SerialPort(To_Marster_Data);
+}
+void Key_EventProcess(void)
+{
+	static u8 temp;
+	static u8 Key8_status = 0;
+	temp = Get_KeyVal(KeyCode);
+	switch(temp){
+		
+	case KEY1_VAL:
+			Kled_Set(OFF_ON,0);//·­×ª×´Ì¬
+		break;
+	case KEY2_VAL:
+			Kled_Set(OFF_ON,1);
+			break;
+	case KEY3_VAL:
+			Kled_Set(OFF_ON,2);
+			break;
+	case KEY4_VAL:
+			Kled_Set(OFF_ON,3);
+			break;
+	case KEY5_VAL:
+			Kled_Set(OFF_ON,4);
+			break;
+	case KEY6_VAL:
+			Kled_Set(OFF_ON,5);
+			break;
+	case KEY7_VAL:
+			Kled_Set(OFF_ON,6);
+			break;
+	case KEY8_VAL:
+		Key8_status ++;
+		if(Display_Code[0]==0xff){
+			Kled_Set(OFF_ALL,7);//È«Ãğ
+			Key8_status = 0;
 		}
-		else if(0==Su8KeyLock1)
+		else if(mod(Key8_status,2))
 		{
-			Su16KeyCnt1++; //ÀÛ¼Ó¶¨Ê±ÖĞ¶Ï´ÎÊı
-			if(Su16KeyCnt1>=KEY_FILTER_TIME) //ÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± KEY_FILTER_TIME£¬ ³¤¶ÈÊÇ 25ms¡£
-			{
-				Su8KeyLock1=1; //°´¼üµÄ×ÔËø,±ÜÃâÒ»Ö±´¥·¢
-				key_led_on(TRUE);//°´¼üÌáÊ¾led
-				KeyCode = Get_KeyVal(KEY_BOARD_GPIO_Y);
-				if(Check_KeyStatus()&&(KeyCode!=KEY8_VAL))
-					KeyCode = 0;
-			}		
+			Kled_Set(ON_ALL,7);//È«ÁÁ
 		}
-}	
-#endif
-#endif
-
-
+		else
+		{
+			Kled_Set(OFF_ALL,7);//È«Ãğ
+		}
+		if(Key8_status >=2)
+			Key8_status = 0;
+		break;
+	default:
+	
+		break;
+		
+		if(Get_Led8Set())//1-7È«ÁÁÊ±,8ÁÁ
+		{
+			Kled_Set(ON,7);//8µÆÁÁ
+		}	
+		else
+		{
+			Kled_Set(OFF,7);//8µÆÃğ
+		}
+	}
+	if(KeyCode){
+		vDataIn595(Display_Code[0]);
+		vDataOut595();
+		Date_EventProcess();//°´¼üÖµ×ª»»³É·¢¸øÖ÷»ú¸ñÊ½µÄÖµ²¢´®¿Ú·¢ËÍ;
+		KeyCode = 0;//Çå³ı°´¼ü´¥·¢Öµ
+	}
+}
 //========================================================================
 // º¯Êı: void main(void)
 // ÃèÊö: Ö÷³ÌĞò.
@@ -374,9 +371,8 @@ void main(void)
 {
 	stc15x_hw_init();
 	vDataIn595(0x00);
-	vDataIn595(0x00);
 	vDataOut595();	//¿ª»úÄ¬ÈÏ¹Ø±ÕÍ¨µÀÏÔÊ¾LED
-	puts_to_SerialPort("init uart");
+	puts_to_SerialPort("408as init uart");
 	while (1)
 	{
 		if(B_1ms)	//1msµ½
@@ -385,113 +381,17 @@ void main(void)
 			if(++msecond >= 1000)	//1Ãëµ½
 			{	
 				msecond = 0;
-				Display_Code[1]=reversebit(Display_Code[1],6);
+				if(flash_flag)
+					key_led_reverse();
 			}
-		  if(++cnt50ms >= 50)		//50msÉ¨ÃèÒ»´ÎĞĞÁĞ¼üÅÌ
+			if(++cnt50ms >= 50)		//50msµ½
 			{
 				cnt50ms = 0;
-		#if defined GPIO_KEY64_BOARD
-				//Gpio_Keyscan();
-				vDataIn595(Display_Code[2]);
-				vDataIn595(Display_Code[1]);
-				vDataIn595(Display_Code[0]);
-				vDataOut595();
-		#endif
 			}
-		#if defined GPIO_KEY64_BOARD
-			if((Check_KeyStatus())&&(KeyCode==KEY8_VAL))
-			{
-				vGu8Key1_lock = 0;
-				vGu8Key2_lock = 0;
-				vGu8Key3_lock = 0;
-				vGu8Key4_lock = 0;
-				vGu8Key5_lock = 0;
-				vGu8Key6_lock = 0;
-				vGu8Key7_lock = 0;	
-				vGu8Key8_lock = 0;
-				vGu16TimeCnt_1 = 0;
-				Gu8Step	= 0;	
-			}
-			/*
-			else if((KeyCode == KEY8_VAL) && vGu8Key8_lock)
-			{
-				Key8_Fun();
-				KeyCode = 0;
-				print_char(0xcc);
-			}
-			*/
+			Key_EventProcess();
 			if(KeyCode > 0)		//ÓĞ¼ü°´ÏÂ
-			{	
-					//Nmos_Set(0,7);//debug led
-					switch(KeyCode)
-					{		
-						case 0x10:
-							vGu8Key1_lock = 1;
-							break; 
-						case 0x11:
-							vGu8Key2_lock = 1;
-							break;
-						case 0x12:
-							vGu8Key3_lock = 1;
-							break;		
-						case 0x13:
-							vGu8Key4_lock = 1;
-							break;		
-						case 0x14:
-							vGu8Key5_lock = 1;
-							break;	
-						case 0x15:
-							vGu8Key6_lock = 1;
-							break;	
-						case 0x16:
-							vGu8Key7_lock = 1;
-							break;	
-						case 0x17:
-							vGu8Key8_lock = 1;
-							Kled_Set(0,0xff);
-							break;	
-						default:
-							break;
-					}				
-					KeyCode = 0;
-					Gu8Step = 0;//step Çå0
+			{		
 			}			
-	
-			if(vGu8Key8_lock)
-			{
-				KeyCode = 0;
-				Key8_Fun();
-				print_char(0x0a);
-			}
-			else if(vGu8Key1_lock){
-				Key1_Fun();
-				print_char(0x0b);
-			}
-			else if(vGu8Key2_lock){
-				Key2_Fun();
-				print_char(0x0c);
-			}
-			else if(vGu8Key3_lock){
-				Key3_Fun();
-				print_char(0x0d);
-			}
-			else if(vGu8Key4_lock){
-				Key4_Fun();
-				print_char(0x0e);
-			}
-			else if(vGu8Key5_lock){
-				Key5_Fun();
-				print_char(0x0f);
-			}
-			else if(vGu8Key6_lock){
-				Key6_Fun();
-				print_char(0xaa);
-			}
-			else if(vGu8Key7_lock){
-				Key7_Fun();	
-				print_char(0xbb);
-			}
-		#endif	
 		}
 	}
 }
@@ -506,7 +406,7 @@ void timer0 (void) interrupt TIMER0_VECTOR
 		vGu16TimeCnt_1++;
 	else
 		vGu16TimeCnt_1 = 0;
-	Gpio_Keyscan();
+	Gpio_Keyscan();//°´¼üÉ¨Ãè
 }
 //========================================================================
 // º¯Êı: void print_string(u8 *puts)
@@ -594,465 +494,4 @@ void uart1_int (void) interrupt UART1_VECTOR
 		TI = 0;
 		B_TX1_Busy = 0;
 	}
-}
-void Key1_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Kled_Set(1,0);//turn on led
-			//vGu8Key1_lock = 1;//°´¼üÉÏËø
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(1,7);//debug led
-			Nmos_Set(1,0);
-			Nmos_Set(1,1);
-			Nmos_Set(1,2);
-			Nmos_Set(1,3);
-			Nmos_Set(1,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);	
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			//Nmos_Set(1,7);//debug led
-			Gu8Step = 0;//step Çå0
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key1_lock = 0;//½â°´¼üËø
-			Kled_Set(0,0);//turn off led
-			break;	
-		default:
-		
-		break;
-	}	
-}
-void Key2_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Nmos_Set(1,7);//debug led
-			Kled_Set(1,1);//turn on led
-			//vGu8Key2_lock=1;//°´¼üÉÏËø
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(1,0);
-			Nmos_Set(1,1);
-			Nmos_Set(1,2);
-			Nmos_Set(1,3);
-			Nmos_Set(1,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);//µÚ1-5Î»Ãğ
-			if(LED_TIME_7S<=vGu16TimeCnt_1) //7sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			Nmos_Set(1,4);//µÚ5Î»ÁÁ
-			if(LED_TIME_10S<=vGu16TimeCnt_1) //10sÊ±¼äµ½
-				Gu8Step++;		
-			break;	
-		case 3:
-			Nmos_Set(0,4);//µÚ5Î»Ãğ
-			if(LED_TIME_15S<=vGu16TimeCnt_1) //15sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 4:
-			Nmos_Set(1,3);//µÚ4Î»ÁÁ
-			if(LED_TIME_18S<=vGu16TimeCnt_1) //18sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 5:
-			Nmos_Set(0,3);//µÚ4Î»Ãğ
-			if(LED_TIME_23S<=vGu16TimeCnt_1) //23sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 6:
-			Nmos_Set(1,2);//µÚ3Î»ÁÁ
-			if(LED_TIME_26S<=vGu16TimeCnt_1) //26sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 7:
-			Nmos_Set(0,2);//µÚ3Î»Ãğ
-			if(LED_TIME_31S<=vGu16TimeCnt_1) //31sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 8:
-			Nmos_Set(1,1);//µÚ2Î»ÁÁ
-			if(LED_TIME_34S<=vGu16TimeCnt_1) //34sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 9:
-			Nmos_Set(0,1);//µÚ2Î»Ãğ
-			if(LED_TIME_39S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 10:
-			Nmos_Set(1,0);//µÚ1Î»ÁÁ
-			if(LED_TIME_42S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 11:
-			Nmos_Set(0,0);//µÚ1Î»Ãğ
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 12:
-			Gu8Step = 0;//step Çå0
-			//Nmos_Set(1,7);//debug led
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key2_lock = 0;//½â°´¼üËø
-			Kled_Set(0,1);//turn off led
-			break;
-		default:	
-			break;
-	}
-}
-void Key3_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Nmos_Set(1,7);//debug led
-			Kled_Set(1,2);//turn on led
-			//vGu8Key3_lock=1;//°´¼üÉÏËø
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(1,0);
-			Nmos_Set(1,1);
-			Nmos_Set(1,2);
-			Nmos_Set(1,3);
-			Nmos_Set(0,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);//µÚ1-5Î»Ãğ
-			
-			if(LED_TIME_15S<=vGu16TimeCnt_1) //15sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			Nmos_Set(1,3);//µÚ4Î»ÁÁ
-			if(LED_TIME_18S<=vGu16TimeCnt_1) //18sÊ±¼äµ½
-				Gu8Step++;		
-			break;	
-		case 3:
-			Nmos_Set(0,3);//µÚ4Î»Ãğ
-			if(LED_TIME_23S<=vGu16TimeCnt_1) //23sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 4:
-			Nmos_Set(1,2);//µÚ3Î»ÁÁ
-			if(LED_TIME_26S<=vGu16TimeCnt_1) //26sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 5:
-			Nmos_Set(0,2);//µÚ3Î»Ãğ
-			if(LED_TIME_31S<=vGu16TimeCnt_1) //31sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 6:
-			Nmos_Set(1,1);//µÚ2Î»ÁÁ
-			if(LED_TIME_34S<=vGu16TimeCnt_1) //34sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 7:
-			Nmos_Set(0,1);//µÚ2Î»Ãğ
-			if(LED_TIME_39S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 8:
-			Nmos_Set(1,0);//µÚ1Î»ÁÁ
-			if(LED_TIME_42S<=vGu16TimeCnt_1) //42sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 9:
-			Nmos_Set(0,0);//µÚ1Î»Ãğ
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 10:
-			vGu8Key3_lock = 0;//½â°´¼üËø
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			Gu8Step = 0;//step Çå0
-			//Nmos_Set(1,7);//debug led
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key3_lock = 0;//½â°´¼üËø
-			Kled_Set(0,2);//turn off led
-			break;
-		default:	
-			break;
-	}
-}
-
-void Key4_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Nmos_Set(1,7);//debug led
-			vGu8Key4_lock=1;//°´¼üÉÏËø
-			Kled_Set(1,3);//turn on led
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(1,0);
-			Nmos_Set(1,1);
-			Nmos_Set(1,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);//µÚ1-5Î»Ãğ
-			if(LED_TIME_23S<=vGu16TimeCnt_1) //23sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			Nmos_Set(1,2);//µÚ3Î»ÁÁ
-			if(LED_TIME_26S<=vGu16TimeCnt_1) //26sÊ±¼äµ½
-				Gu8Step++;		
-			break;	
-		case 3:
-			Nmos_Set(0,2);//µÚ3Î»ÁÁ
-			if(LED_TIME_31S<=vGu16TimeCnt_1) //31sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 4:
-			Nmos_Set(1,1);//µÚ2Î»ÁÁ
-			if(LED_TIME_34S<=vGu16TimeCnt_1) //31sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 5:
-			Nmos_Set(0,1);//µÚ2Î»ÁÁ
-			if(LED_TIME_39S<=vGu16TimeCnt_1) //34sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 6:
-			Nmos_Set(1,0);//µÚ2Î»ÁÁ
-			if(LED_TIME_42S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 7:
-			Nmos_Set(0,0);//µÚ1Î»Ãğ
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 8:
-			Gu8Step = 0;//step Çå0
-			//Nmos_Set(1,7);//debug led
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key4_lock = 0;//½â°´¼üËø
-			Kled_Set(0,3);//turn off led
-			break;
-		default:	
-			break;
-	}
-}
-void Key5_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Nmos_Set(1,7);//debug led
-			Kled_Set(1,4);//turn on led
-			//vGu8Key5_lock=1;//°´¼üÉÏËø
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(1,0);
-			Nmos_Set(1,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);//µÚ1-5Î»Ãğ
-			if(LED_TIME_31S<=vGu16TimeCnt_1) //31sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			Nmos_Set(1,1);//µÚ2Î»ÁÁ
-			if(LED_TIME_34S<=vGu16TimeCnt_1) //34sÊ±¼äµ½
-				Gu8Step++;		
-			break;	
-		case 3:
-			Nmos_Set(0,1);//µÚ2Î»Ãğ
-			if(LED_TIME_39S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 4:
-			Nmos_Set(1,0);//µÚ1Î»ÁÁ
-			if(LED_TIME_42S<=vGu16TimeCnt_1) //42sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 5:
-			Nmos_Set(0,0);//µÚ1Î»Ãğ
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 6:
-			Gu8Step = 0;//step Çå0
-			//Nmos_Set(1,7);//debug led
-			Kled_Set(0,4);//turn off led
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key5_lock = 0;//½â°´¼üËø		
-			break;
-		default:	
-			break;
-	}
-}
-void Key6_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			//vGu8Key6_lock=1;//°´¼üÉÏËø
-			Nmos_Set(1,7);//debug led
-			Kled_Set(1,5);//turn on led
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»	
-			Nmos_Set(1,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_3S<=vGu16TimeCnt_1) //3sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);//µÚ1-5Î»Ãğ
-			if(LED_TIME_39S<=vGu16TimeCnt_1) //39sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 2:
-			Nmos_Set(1,0);//µÚ1Î»ÁÁ
-			if(LED_TIME_42S<=vGu16TimeCnt_1) //42sÊ±¼äµ½
-				Gu8Step++;		
-			break;	
-		case 3:
-			Nmos_Set(0,0);//µÚ1Î»Ãğ
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 4:
-			vGu8Key6_lock = 0;//½â°´¼üËø
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			Gu8Step = 0;//step Çå0
-			//Nmos_Set(1,7);//debug led
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key6_lock = 0;//½â°´¼üËø
-			Kled_Set(0,5);//turn off led
-			break;
-		default:	
-			break;
-	}
-}
-void Key7_Fun(void)
-{
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			//vGu8Key7_lock=1;//°´¼üÉÏËø
-			Nmos_Set(1,7);//debug led
-			Kled_Set(1,6);//turn on led
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			Nmos_Set(0,0);
-			Nmos_Set(0,1);
-			Nmos_Set(0,2);
-			Nmos_Set(0,3);
-			Nmos_Set(0,4);
-			Nmos_Set(1,5);//
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key7_lock = 0;//½â°´¼üËø
-			Gu8Step = 0;//step Çå0
-			Kled_Set(0,6);//turn off led		
-			break;
-		default:	
-			break;
-	}
-}
-
-void Key8_Fun(void)
-{	
-	switch(Gu8Step)
-	{
-		KeyCode = 0;
-		case 0:
-			Nmos_Set(1,0xff);//È«²¿¹Ø±Õ
-			Nmos_Set(0,7);//debug led
-			Kled_Set(1,7);//turn on led
-			vGu8TimeFlag_1 = 1;//¶¨Ê±Æ÷ÔËĞĞÖÃÎ»
-			//print_char(0x22);
-			if(LED_TIME_60S<=vGu16TimeCnt_1) //60sÊ±¼äµ½
-				Gu8Step++;
-			break;
-		case 1:
-			vGu8Key1_lock = 0;
-			vGu8Key2_lock = 0;
-			vGu8Key3_lock = 0;
-			vGu8Key4_lock = 0;
-			vGu8Key5_lock = 0;
-			vGu8Key6_lock = 0;
-			vGu8Key7_lock = 0;
-			
-			KeyCode = 0;
-			vGu8TimeFlag_1 = 0;//Çå¶¨Ê±Æ÷ÔËĞĞ±êÖ¾
-			vGu8Key8_lock = 0;//½â°´¼üËø
-			Gu8Step = 0;//step Çå0	
-			Kled_Set(0,7);//turn off led				
-			break;
-		default:	
-			break;
-	}
-}
-int Check_KeyStatus(void)
-{
-	if(vGu8Key7_lock || vGu8Key6_lock || vGu8Key5_lock || vGu8Key4_lock || vGu8Key3_lock || vGu8Key2_lock || vGu8Key1_lock)
-		return 1;
-	else 
-		return 0;	
 }
