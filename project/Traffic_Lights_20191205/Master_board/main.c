@@ -30,23 +30,20 @@ v1.1：
 #define	Baudrate1	115200UL                                //通信波特率115200
 
 #define KEY_LED_GPIO P55
-#define KEY_BOARD_GPIO_Y P2
+
 	#define ON       1
 	#define OFF      0
 	#define ON_ALL   0xff
 	#define OFF_ALL  0xfe
 	#define OFF_ON   0xfd
-	#define KEY1_VAL 0x10
-	#define KEY2_VAL 0x11
-	#define KEY3_VAL 0x12
-	#define KEY4_VAL 0x13
-	#define KEY5_VAL 0x14
-	#define KEY6_VAL 0x15
-	#define KEY7_VAL 0x16
-	#define KEY8_VAL 0x17
-
-#define CMD_ON_OFF_ALL 1
+	#define RED_LED     2
+	#define YELLOW_LED  1
+	#define GREEN_LED   0
+	#define CAR_LED     3
 	
+#define GPIO_CHECK_PIN P26
+#define GPIO_OUT_PIN   P10
+
 //========================================================================
 /*************	本地变量声明	**************/
 /********************** 公用量 ************************/
@@ -56,26 +53,31 @@ u8 cnt50ms;  //50ms计数
 u8 cnt10ms;  //10ms计数
 BOOL B_TX1_Busy;  //发送忙标志
 
+//“软件定时器 1” 的相关变量
+volatile unsigned char vGu8TimeFlag_1=0;
+volatile u32 vGu32TimeCnt_1=0;	
+volatile unsigned char vGu8TimeFlag_2=0;
+volatile unsigned int vGu16TimeCnt_2=0;	
+volatile unsigned char vGu8LeveCheckFlag=0;	
+BOOL flash_flag = TRUE;
+
+#define GPIO_FILTER_TIME 50 //滤波的“ 稳定时间” 50ms
+
+#define LED_TIME_60S 60000 //时间是 60000ms
+#define LED_TIME_65S 65000 //时间是 65000ms
+#define LED_TIME_95S 95000 //时间是 95000ms
+
+static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
+	
+
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
 
-#define	UART1_TX_LENGTH 11
+
 static u8 Display_Code[1]={0x00};//1个595控制按键板LED灯。
-static u8 To_Marster_Data[UART1_TX_LENGTH]={0x05,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,'*'};//主控板继电器开关状态，帧头0x01,帧尾0xff;
-static u8 code LED_CMD[3]={0x1,0xff,'*'};
 /********************** 8*8矩阵键盘 ************************/
 
-static u8 KeyCode= 0x00;	//给用户使用的键码	
-static u8 Key8_status = 0;
-
-//“软件定时器 1” 的相关变量
-volatile unsigned char vGu8TimeFlag_1=0;
-volatile unsigned int vGu16TimeCnt_1=0;
-BOOL flash_flag = TRUE;
-
-
-#define KEY_FILTER_TIME 50 //按键滤波的“ 稳定时间” 50ms
 
 /********************** A 给指示灯用的595 ************************/
 sbit	A_HC595_SER   = P3^4;	//pin 34	SER		data input
@@ -83,7 +85,6 @@ sbit	A_HC595_RCLK  = P3^7;	//pin 37	RCLk	store (latch) clock
 sbit	A_HC595_SRCLK = P3^5;	//pin 35	SRCLK	Shift data clock
 sbit	A_HC595_OE    = P5^4;	//pin 54	OE 		低电平 使能enable pin
 sbit	A_HC595_MR    = P3^6;	//pin 36	低电平复位	
-
 
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
@@ -144,6 +145,7 @@ void stc15x_hw_init(void)
 	P5n_standard(0xff);	//设置为准双向口	
 	timer0_init();
 	uart1_config();
+	GPIO_OUT_PIN = 0;//输出低，让P26检测
 	A_HC595_MR = 1;//复位禁止
 	A_HC595_OE = 0;//使能芯片
 }
@@ -198,7 +200,6 @@ void gpio_key_delay(void)
 	while(--i)	;
 }
 
-
 void Kled_Set(int status,u8 Nled)
 {
 	u8 val;
@@ -214,178 +215,64 @@ void Kled_Set(int status,u8 Nled)
 	else if(OFF_ON == status)
 		Display_Code[0] = reversebit(val,Nled);//翻转
 }
-
-void Gpio_Keyscan(void)	//50ms call
+void Gpio_ValRead(void)	
 {	
 	static unsigned char Su8KeyLock1; //1 号按键的自锁
-	static unsigned int Su16KeyCnt1; //1 号按键的计时器
-	P10 = 0;
-	if(KEY_BOARD_GPIO_Y==0xff)
+
+	if(GPIO_CHECK_PIN==1)
 	{
 		Su8KeyLock1=0; //按键解锁
-		Su16KeyCnt1=0; //按键去抖动延时计数器清零
+		vGu8TimeFlag_2=0;
+		vGu16TimeCnt_2=0;
 		flash_flag = TRUE;
-		if(!flash_flag)
-			key_led_on(FALSE);//熄灭按键提示led
+		Kled_Set(OFF,CAR_LED);//汽车停止
 	}
 	else if(0==Su8KeyLock1)
 	{
-		Su16KeyCnt1++; //累加定时中断次数
-		if(Su16KeyCnt1>=KEY_FILTER_TIME) //滤波的“ 稳定时间” KEY_FILTER_TIME， 长度是 50ms。
+		vGu8TimeFlag_2=1;//启动定时器2
+		if(vGu16TimeCnt_2>=GPIO_FILTER_TIME) //滤波的“ 稳定时间” GPIO_FILTER_TIME， 长度是 50ms。
 		{
+			vGu8TimeFlag_2=0;//滤波时间到，定时器请0
 			Su8KeyLock1=1; //按键的自锁,避免一直触发
+			Kled_Set(ON,CAR_LED);//汽车停止
 			key_led_on(TRUE);//按键提示led
 			flash_flag = FALSE;
-			KeyCode = Get_KeyVal(KEY_BOARD_GPIO_Y);
 		}		
 	}
 }	
-int Get_KeyVal(int val)
+void Traffic_Led(void)
 {
-	int temp;
-	switch(val){
-		case 0xfe:
-				temp =0x10;
+	switch(Gu8Step)
+	{
+		case 0:
+			vGu8TimeFlag_1 = 1;
+			Kled_Set(ON,GREEN_LED);//绿灯亮
+			Kled_Set(OFF,RED_LED);//红灯灭
+			vGu8LeveCheckFlag = 0;//关闭电平检测
+			if(vGu32TimeCnt_1>=LED_TIME_60S) //60s时间到
+				Gu8Step++;
 			break;
-		case 0xfd:
-				temp =0x11;
-				break;
-		case 0xfb:
-				temp =0x12;
-				break;
-		case 0xf7:
-				temp =0x13;
-				break;
-		case 0xef:
-				temp =0x14;
-				break;
-		case 0xdf:
-				temp =0x15;
-				break;
-		case 0xbf:
-				temp =0x16;
-				break;
-		case 0x7f:
-				temp =0x17;
-				break;
-		default:
+		case 1:
+			Kled_Set(OFF,GREEN_LED);//绿灯灭
+			Kled_Set(ON,YELLOW_LED);//黄灯亮
+			vGu8LeveCheckFlag = 1;//启动电平检测
+			if(vGu32TimeCnt_1>=LED_TIME_65S) //65s时间到
+				Gu8Step++;
+			break;
+		case 2:
+			Kled_Set(OFF,GREEN_LED);//绿灯灭
+			Kled_Set(OFF,YELLOW_LED);//黄灯灭
+			Kled_Set(ON,RED_LED);//红灯亮
+			if(vGu32TimeCnt_1>=LED_TIME_95S) //95s时间到
+			{
+				Gu8Step=0;		
+				vGu32TimeCnt_1 = 0;
+				vGu8TimeFlag_1 = 0;
+			}
+			break;	
+		default:	
 			break;
 	}
-	return temp;
-}
-int Get_Led8Set(void)
-{
-	static u8 temp = 0;
-	temp = Display_Code[0];
-	if((temp == 0x80) || (temp == 0x00))
-		return 1;
-	else if((temp == 0x7f) || (temp ==0xff))
-		return 2;
-	else 
-		return 0;
-	
-}
-void Date_EventProcess(void)
-{
-	u8 i=0;
-
-	for(i=0;i<8;i++)
-	{
-		if(getbit(Display_Code[0],i))
-			To_Marster_Data[i+1] = 0xfe;
-		else
-			To_Marster_Data[i+1] = 0x00;
-	}
-#if defined CMD_ON_OFF_ALL
-	if(KEY8_VAL == KeyCode)
-		print_string(LED_CMD);
-	else
-		print_string(To_Marster_Data);
-#else
-	print_string(To_Marster_Data);
-#endif
-		
-}
-void Key_EventProcess(int KeyCode)
-{
-	switch(KeyCode){
-	case KEY1_VAL:
-		Kled_Set(OFF_ON,0);//翻转状态
-		break;
-	case KEY2_VAL:
-		Kled_Set(OFF_ON,1);
-		break;
-	case KEY3_VAL:
-		Kled_Set(OFF_ON,2);
-		break;
-	case KEY4_VAL:
-		Kled_Set(OFF_ON,3);
-		break;
-	case KEY5_VAL:
-		Kled_Set(OFF_ON,4);
-		break;
-	case KEY6_VAL:
-		Kled_Set(OFF_ON,5);
-		break;
-	case KEY7_VAL:
-		Kled_Set(OFF_ON,6);
-		break;
-	case KEY8_VAL:
-		Key8_status ++;
-#if defined CMD_ON_OFF_ALL
-		if(rem(Key8_status,2))
-#else
-		if(Display_Code[0]==0xff){
-			Kled_Set(OFF_ALL,7);//全灭
-			Key8_status = 0;
-		}
-		else if(rem(Key8_status,2))
-#endif
-		{
-			Kled_Set(ON_ALL,7);//全亮
-		}
-		else
-		{
-			Kled_Set(OFF_ALL,7);//全灭
-		}
-		if(Key8_status >=2)
-			Key8_status = 0;
-		break;
-	default:
-		break;	
-	}
-
-	if(Get_Led8Set()==1)//1-7灭时,8灭
-	{
-#if defined CMD_ON_OFF_ALL
-		//Key8_status = 0;
-#else
-		Key8_status = 0;
-#endif
-		Kled_Set(OFF,7);//8灯灭
-	}	
-	else if(Get_Led8Set()==2)//1-7亮时,8亮
-	{
-		Kled_Set(ON,7);//8灯灭
-#if defined CMD_ON_OFF_ALL
-		//Key8_status = 1;
-#else
-		Key8_status = 1;
-#endif
-	}
-	else
-	{
-		Kled_Set(OFF,7);//8灯灭
-		//Key8_status = 0;
-	}
-	vDataIn595(Display_Code[0]);
-	vDataOut595();
-	if(KeyCode){
-		
-		Date_EventProcess();//按键值转换成发给主机格式的值并串口发送;
-		KeyCode = 0;//清除按键触发值
-	}
-
 }
 //========================================================================
 // 函数: void main(void)
@@ -399,7 +286,7 @@ void main(void)
 	stc15x_hw_init();
 	vDataIn595(0x00);
 	vDataOut595();	//开机默认关闭通道显示LED
-	puts_to_SerialPort("408as init uart");
+	puts_to_SerialPort("I am Traffic Lights!\n");
 	while (1)
 	{
 		if(B_1ms)	//1ms到
@@ -411,15 +298,17 @@ void main(void)
 				if(flash_flag)
 					key_led_reverse();
 			}
-			if(++cnt50ms >= 50)		//50ms到
+			Traffic_Led();//指示灯状态切换
+			if(vGu8LeveCheckFlag)
+				Gpio_ValRead();//低电平检测
+			else
 			{
-				cnt50ms = 0;
+				vGu8TimeFlag_2=0;//不检测，定时器请0
+				Kled_Set(OFF,CAR_LED);//汽车运行
 			}
-			Key_EventProcess(KeyCode);
-			if(KeyCode > 0)		//有键按下
-			{		
-				KeyCode = 0;
-			}			
+				vDataIn595(Display_Code[0]);
+				vDataOut595();
+			
 		}
 	}
 }
@@ -431,10 +320,11 @@ void timer0 (void) interrupt TIMER0_VECTOR
 {
 	B_1ms = 1;		//1ms标志
 	if(vGu8TimeFlag_1)
-		vGu16TimeCnt_1++;
+		vGu32TimeCnt_1++;
 	else
-		vGu16TimeCnt_1 = 0;
-	Gpio_Keyscan();//按键扫描
+		vGu32TimeCnt_1 = 0;
+	if(vGu8TimeFlag_2)
+		vGu16TimeCnt_2++;
 }
 //========================================================================
 // 函数: void print_string(u8 *puts)

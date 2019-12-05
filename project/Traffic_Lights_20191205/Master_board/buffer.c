@@ -143,4 +143,6 @@ void timer0 (void) interrupt TIMER0_VECTOR
 		vGu16TimeCnt_1 = 0;
 	if(vGu8TimeFlag_2)
 		vGu16TimeCnt_2++;
+	else
+		vGu16TimeCnt_2 = 0;
 }
