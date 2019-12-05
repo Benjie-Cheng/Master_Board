@@ -44,6 +44,8 @@ v1.1：
 	#define KEY6_VAL 0x15
 	#define KEY7_VAL 0x16
 	#define KEY8_VAL 0x17
+
+#define CMD_ON_OFF_ALL 1
 	
 //========================================================================
 /*************	本地变量声明	**************/
@@ -61,7 +63,7 @@ u8 RX_CONT = 0;
 #define	UART1_TX_LENGTH 11
 static u8 Display_Code[1]={0x00};//1个595控制按键板LED灯。
 static u8 To_Marster_Data[UART1_TX_LENGTH]={0x05,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,'*'};//主控板继电器开关状态，帧头0x01,帧尾0xff;
-
+static u8 code LED_CMD[3]={0x1,0xff,'*'};
 /********************** 8*8矩阵键盘 ************************/
 
 static u8 KeyCode= 0x00;	//给用户使用的键码	
@@ -294,7 +296,15 @@ void Date_EventProcess(void)
 		else
 			To_Marster_Data[i+1] = 0x00;
 	}
+#if defined CMD_ON_OFF_ALL
+	if(KEY8_VAL == KeyCode)
+		print_string(LED_CMD);
+	else
+		print_string(To_Marster_Data);
+#else
 	print_string(To_Marster_Data);
+#endif
+		
 }
 void Key_EventProcess(int KeyCode)
 {
@@ -322,11 +332,15 @@ void Key_EventProcess(int KeyCode)
 		break;
 	case KEY8_VAL:
 		Key8_status ++;
+#if defined CMD_ON_OFF_ALL
+		if(rem(Key8_status,2))
+#else
 		if(Display_Code[0]==0xff){
 			Kled_Set(OFF_ALL,7);//全灭
 			Key8_status = 0;
 		}
 		else if(rem(Key8_status,2))
+#endif
 		{
 			Kled_Set(ON_ALL,7);//全亮
 		}
@@ -343,13 +357,21 @@ void Key_EventProcess(int KeyCode)
 
 	if(Get_Led8Set()==1)//1-7灭时,8灭
 	{
+#if defined CMD_ON_OFF_ALL
+		//Key8_status = 0;
+#else
 		Key8_status = 0;
+#endif
 		Kled_Set(OFF,7);//8灯灭
 	}	
 	else if(Get_Led8Set()==2)//1-7亮时,8亮
 	{
 		Kled_Set(ON,7);//8灯灭
+#if defined CMD_ON_OFF_ALL
+		//Key8_status = 1;
+#else
 		Key8_status = 1;
+#endif
 	}
 	else
 	{
