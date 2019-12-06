@@ -58,25 +58,38 @@ volatile unsigned char vGu8TimeFlag_1=0;
 volatile u32 vGu32TimeCnt_1=0;	
 volatile unsigned char vGu8TimeFlag_2=0;
 volatile unsigned int vGu16TimeCnt_2=0;	
-volatile unsigned char vGu8LeveCheckFlag=0;	
+volatile unsigned char vGu8LeveCheckFlag=0;
+
+#define G_LED_TIME 59
+#define Y_LED_TIME 4
+#define R_LED_TIME 29	
+volatile unsigned int g_count = G_LED_TIME;
+volatile unsigned int y_count = Y_LED_TIME;
+volatile unsigned int r_count = R_LED_TIME;
 BOOL flash_flag = TRUE;
 
 #define GPIO_FILTER_TIME 50 //滤波的“ 稳定时间” 50ms
 
+#define LED_TIME_1S  1000  //时间是 10000ms
 #define LED_TIME_60S 60000 //时间是 60000ms
 #define LED_TIME_65S 65000 //时间是 65000ms
 #define LED_TIME_95S 95000 //时间是 95000ms
 
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
-	
+#define	INDEX_MAX 2	//显示位索引
+static u8 	Display_Code[3]={0x00,0x00,0x00};		//1个595控制按键板LED灯,两个595数码管倒计时。
+static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
+static u8	display_index = 0;						//显示位索引	
 
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
-
-
-static u8 Display_Code[1]={0x00};//1个595控制按键板LED灯。
-/********************** 8*8矩阵键盘 ************************/
+u8 code t_display[]={						//共阴极标准字库，共阳取反
+//	 0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+	0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F,0x77,0x7C,0x39,0x5E,0x79,0x71,
+//black	 -     H    J	 K	  L	   N	o   P	 U     t    G    Q    r   M    y
+	0x00,0x40,0x76,0x1E,0x70,0x38,0x37,0x5C,0x73,0x3E,0x78,0x3d,0x67,0x50,0x37,0x6e,
+	0xBF,0x86,0xDB,0xCF,0xE6,0xED,0xFD,0x87,0xFF,0xEF,0x46};	//0. 1. 2. 3. 4. 5. 6. 7. 8. 9. -1
 
 
 /********************** A 给指示灯用的595 ************************/
@@ -91,6 +104,36 @@ void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
 int Get_KeyVal(int val);
+void TaskDisplayScan(void);
+void vTaskfFlashLed(void);
+
+typedef struct _TASK_COMPONENTS
+{
+	u8 Run;                 // 程序运行标记：0-不运行，1运行
+	u16 Timer;               // 计时器
+	u16 ItvTime;             // 任务运行间隔时间
+	void (*TaskHook)(void); // 要运行的任务函数
+} TASK_COMPONENTS;   
+static TASK_COMPONENTS TaskComps[] =
+{
+	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
+	{0, 10, 10, TaskDisplayScan},         		// 显示时钟,LED 10ms刷新	
+//	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
+//	{0, 10, 10, TaskRTC}				        // RTC倒计时
+//	{0, 30, 30, TaskDispStatus}
+	// 这里添加你的任务
+};
+typedef enum _TASK_LIST
+{
+	TASK_FLASH_LED,        // 运行LED
+	TAST_DISP_TIME,        // 显示时钟
+//	TASK_KEY_SERV,
+//	TASK_RTC,
+//	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
+	// 这里添加你的任务
+	TASKS_MAX                 // 总的可供分配的定时任务数目
+} TASK_LIST;
+
 //========================================================================
 // 描述: u8 ms延时函数。
 //========================================================================
@@ -170,28 +213,56 @@ void vDataOut595()
 	A_HC595_RCLK = 1;
 }
 
+void TaskRemarks(void)
+{
+	u8 i;    
+	for (i=0; i<TASKS_MAX; i++)           // 逐个任务时间处理
+	{
+		if (TaskComps[i].Timer)           // 时间不为0
+		{
+			TaskComps[i].Timer--;         // 减去一个节拍
+			if (TaskComps[i].Timer == 0)  // 时间减完了
+			{
+				TaskComps[i].Timer = TaskComps[i].ItvTime;       // 恢复计时器值，从新下一次
+				TaskComps[i].Run = 1;           // 任务可以运行	
+			}
+		}
+	}
+}
+void TaskProcess(void)
+{
+	u8 i;    
+	for (i=0; i<TASKS_MAX; i++)           // 逐个任务时间处理
+	{
+		if (TaskComps[i].Run)           // 时间不为0
+		{
+			TaskComps[i].TaskHook();         // 运行任务
+			TaskComps[i].Run = 0;          // 标志清0
+		}
+	}
+}
 /*****************************************************
 	行列键扫描程序
 	使用XY查找8x8键的方法，只能单键，速度快
 
-    Y  P10   P11   P12   P13   P14   P15   P16   P17
+    Y  P20   P21   P22   P23   P24   P25   P26   P27
         |     |     |     |     |     |     |     |
 X       |     |     |     |     |     |     |     |
-P00 -- K00 - K01 - K02 - K03 - K04 - K05 - K06 - K07
+P10 -- K00 - K01 - K02 - K03 - K04 - K05 - K06 - K07
         |     |     |     |     |     |     |     |
-P01 -- K08 - K09 - K10 - K11 - K12 - K13 - K14 - K15
+P11 -- K08 - K09 - K10 - K11 - K12 - K13 - K14 - K15
         |     |     |     |     |     |     |     |
-P02 -- K16 - K17 - K18 - K19 - K20 - K21 - K22 - K23
+P12 -- K16 - K17 - K18 - K19 - K20 - K21 - K22 - K23
         |     |     |     |     |     |     |     |
-P03 -- K24 - K25 - K26 - K27 - K28 - K29 - K30 - K31
+P13 -- K24 - K25 - K26 - K27 - K28 - K29 - K30 - K31
         |     |     |     |     |     |     |     |
-P04 -- K32 - K33 - K34 - K35 - K36 - K37 - K38 - K39
+P14 -- K32 - K33 - K34 - K35 - K36 - K37 - K38 - K39
         |     |     |     |     |     |     |     |
-P05 -- K40 - K41 - K42 - K43 - K44 - K45 - K46 - K47
+P15 -- K40 - K41 - K42 - K43 - K44 - K45 - K46 - K47
         |     |     |     |     |     |     |     |
-P06 -- K48 - K49 - K50 - K51 - K52 - K53 - K54 - K55
+P16 -- K48 - K49 - K50 - K51 - K52 - K53 - K54 - K55
         |     |     |     |     |     |     |     |
-P07 -- K56 - K57 - K58 - K59 - K60 - K61 - K62 - K63
+P17 -- K56 - K57 - K58 - K59 - K60 - K61 - K62 - K63
 ******************************************************/
 void gpio_key_delay(void)
 {
@@ -199,7 +270,69 @@ void gpio_key_delay(void)
 	i = 60;
 	while(--i)	;
 }
-
+void BitX_Set(int status,u8 Xbit)
+{
+/*
+	u8 val;
+	Display_Code[2] = 0x00;//将低四位先清0，再置位，每次只能亮一位
+	val = Display_Code[2];
+	if(En)
+		Display_Code[2] = setbit(val,Xbit);//共阳极高电平导通三极管	
+*/
+	u8 val;
+	val = Display_Code[2];
+	if(status==ON)
+		Display_Code[2] = setbit(val,Xbit);//高电平导通
+	else if(status==OFF)
+		Display_Code[2] = clrbit(val,Xbit);	
+	else if(ON_ALL == status)	
+		Display_Code[2] = 0xff;
+	else if(OFF_ALL == status)
+		Display_Code[2] = 0x00;
+	else if(OFF_ON == status)
+		Display_Code[2] = reversebit(val,Xbit);//翻转
+}
+void TaskDisplayScan(void)//10ms 刷新一次
+{ 
+	for(display_index = 0;display_index < INDEX_MAX;display_index++){
+		//DisplayChange();//赋值缓存数值，并改变数码管com位
+		BitX_Set(ON,display_index);//com 口扫描，点亮该位
+#if 0
+	_nop_();
+	_nop_();
+	BitX_Set(OFF,display_index);//改变亮度
+#endif		
+		Display_Code[1] = LED8[display_index];
+		Display_Code[1] = LED8[1];
+										//送显即可
+		//delay_ms(254);
+		//delay_ms(254);
+		vDataIn595(Display_Code[2]);//输出位码//考虑消影
+		vDataIn595(Display_Code[1]);//输出断码
+		vDataIn595(Display_Code[0]);//输出红绿灯状态
+		vDataOut595();				//锁存输出数据
+	}
+}
+void vTaskfFlashLed(void)
+{ 
+	if(flash_flag)
+		key_led_reverse();
+	switch(Gu8Step)
+	{
+		case 0:	
+			print_char(mod(g_count,10));
+			print_char(rem(g_count,10));
+		break;
+		case 1:
+			print_char(mod(y_count,10));
+			print_char(rem(y_count,10));
+		break;			
+		case 2:
+			print_char(mod(r_count,10));
+			print_char(rem(r_count,10));
+		break;	
+	}
+}
 void Kled_Set(int status,u8 Nled)
 {
 	u8 val;
@@ -249,25 +382,49 @@ void Traffic_Led(void)
 			Kled_Set(ON,GREEN_LED);//绿灯亮
 			Kled_Set(OFF,RED_LED);//红灯灭
 			vGu8LeveCheckFlag = 0;//关闭电平检测
-			if(vGu32TimeCnt_1>=LED_TIME_60S) //60s时间到
-				Gu8Step++;
+			r_count = R_LED_TIME;
+			LED8[0] = ~t_display[mod(g_count,10)];
+			LED8[1] = ~t_display[rem(g_count,10)];
+			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			{
+				g_count--;
+				vGu32TimeCnt_1 = 0;
+				if(g_count == 0)
+					Gu8Step++;
+			}	
 			break;
 		case 1:
+			g_count = G_LED_TIME;
 			Kled_Set(OFF,GREEN_LED);//绿灯灭
 			Kled_Set(ON,YELLOW_LED);//黄灯亮
+			LED8[0] = ~t_display[mod(y_count,10)];
+			LED8[1] = ~t_display[rem(y_count,10)];	
 			vGu8LeveCheckFlag = 1;//启动电平检测
-			if(vGu32TimeCnt_1>=LED_TIME_65S) //65s时间到
-				Gu8Step++;
+			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			{
+				y_count--;	
+				vGu32TimeCnt_1 = 0;
+				if(y_count == 0)
+					Gu8Step++;
+			}
 			break;
 		case 2:
+			y_count = G_LED_TIME;
 			Kled_Set(OFF,GREEN_LED);//绿灯灭
 			Kled_Set(OFF,YELLOW_LED);//黄灯灭
 			Kled_Set(ON,RED_LED);//红灯亮
-			if(vGu32TimeCnt_1>=LED_TIME_95S) //95s时间到
+			LED8[0] = ~t_display[mod(r_count,10)];
+			LED8[1] = ~t_display[rem(r_count,10)];	
+			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
-				Gu8Step=0;		
+				r_count--;		
 				vGu32TimeCnt_1 = 0;
-				vGu8TimeFlag_1 = 0;
+				if(r_count == 0)
+				{
+					Gu8Step=0;		
+					vGu32TimeCnt_1 = 0;
+					vGu8TimeFlag_1 = 0;
+				}
 			}
 			break;	
 		default:	
@@ -287,18 +444,12 @@ void main(void)
 	vDataIn595(0x00);
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am Traffic Lights!\n");
-	while (1)
+	while(1)
 	{
 		if(B_1ms)	//1ms到
 		{
 			B_1ms = 0;	
-			if(++msecond >= 1000)	//1秒到
-			{	
-				msecond = 0;
-				if(flash_flag)
-					key_led_reverse();
-			}
-			Traffic_Led();//指示灯状态切换
+			Traffic_Led();//指示灯状态切换		
 			if(vGu8LeveCheckFlag)
 				Gpio_ValRead();//低电平检测
 			else
@@ -306,10 +457,8 @@ void main(void)
 				vGu8TimeFlag_2=0;//不检测，定时器请0
 				Kled_Set(OFF,CAR_LED);//汽车运行
 			}
-				vDataIn595(Display_Code[0]);
-				vDataOut595();
-			
 		}
+		TaskProcess();//显示和闪烁led
 	}
 }
 
@@ -319,8 +468,10 @@ void main(void)
 void timer0 (void) interrupt TIMER0_VECTOR
 {
 	B_1ms = 1;		//1ms标志
-	if(vGu8TimeFlag_1)
+	TaskRemarks();
+	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
+	}
 	else
 		vGu32TimeCnt_1 = 0;
 	if(vGu8TimeFlag_2)
