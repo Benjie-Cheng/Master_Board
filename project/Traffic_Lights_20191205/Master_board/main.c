@@ -117,7 +117,7 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
-	{0, 10, 10, TaskDisplayScan},         		// 显示时钟,LED 10ms刷新	
+//	{0, 10, 10, TaskDisplayScan},         		// 显示时钟,LED 10ms刷新	
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus}
@@ -126,7 +126,7 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // 运行LED
-	TAST_DISP_TIME,        // 显示时钟
+//	TAST_DISP_TIME,        // 显示时钟
 //	TASK_KEY_SERV,
 //	TASK_RTC,
 //	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
@@ -280,7 +280,8 @@ void BitX_Set(int status,u8 Xbit)
 		Display_Code[2] = setbit(val,Xbit);//共阳极高电平导通三极管	
 */
 	u8 val;
-	val = Display_Code[2];
+	//val = Display_Code[2];
+	val =0x00;
 	if(status==ON)
 		Display_Code[2] = setbit(val,Xbit);//高电平导通
 	else if(status==OFF)
@@ -303,7 +304,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	BitX_Set(OFF,display_index);//改变亮度
 #endif		
 		Display_Code[1] = LED8[display_index];
-		Display_Code[1] = LED8[1];
+		//Display_Code[1] = LED8[1];
 										//送显即可
 		//delay_ms(254);
 		//delay_ms(254);
@@ -409,7 +410,7 @@ void Traffic_Led(void)
 			}
 			break;
 		case 2:
-			y_count = G_LED_TIME;
+			y_count = Y_LED_TIME;
 			Kled_Set(OFF,GREEN_LED);//绿灯灭
 			Kled_Set(OFF,YELLOW_LED);//黄灯灭
 			Kled_Set(ON,RED_LED);//红灯亮
@@ -458,6 +459,7 @@ void main(void)
 				Kled_Set(OFF,CAR_LED);//汽车运行
 			}
 		}
+		TaskDisplayScan();
 		TaskProcess();//显示和闪烁led
 	}
 }
