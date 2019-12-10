@@ -76,7 +76,7 @@ BOOL flash_flag = TRUE;
 #define LED_TIME_95S 95000 //时间是 95000ms
 
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
-#define	INDEX_MAX 2	//显示位索引
+#define	INDEX_MAX 4	//显示位索引
 static u8 	Display_Code[3]={0x00,0x00,0x00};		//1个595控制按键板LED灯,两个595数码管倒计时。
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
 static u8	display_index = 0;						//显示位索引	
@@ -106,6 +106,7 @@ void print_char(u8 dat);
 int Get_KeyVal(int val);
 void TaskDisplayScan(void);
 void vTaskfFlashLed(void);
+void TaskLedRunScan(void);
 
 typedef struct _TASK_COMPONENTS
 {
@@ -117,7 +118,7 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
-//	{0, 10, 10, TaskDisplayScan},         		// 显示时钟,LED 10ms刷新	
+	{0, 80, 80, TaskLedRunScan},         		// 跑马灯	
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus}
@@ -126,7 +127,7 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // 运行LED
-//	TAST_DISP_TIME,        // 显示时钟
+	TAST_LED_RUN,        	//跑马灯
 //	TASK_KEY_SERV,
 //	TASK_RTC,
 //	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
@@ -304,15 +305,14 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	BitX_Set(OFF,display_index);//改变亮度
 #endif		
 		Display_Code[1] = LED8[display_index];
-		//Display_Code[1] = LED8[1];
-										//送显即可
-		//delay_ms(254);
-		//delay_ms(254);
-		vDataIn595(Display_Code[2]);//输出位码//考虑消影
+
+		vDataIn595(Display_Code[2]);//输出位码
+		vDataIn595(Display_Code[1]);//输出断码
+		vDataIn595(Display_Code[2]);//输出位码
 		vDataIn595(Display_Code[1]);//输出断码
 		vDataIn595(Display_Code[0]);//输出红绿灯状态
 		vDataOut595();				//锁存输出数据
-	}
+	}	
 }
 void vTaskfFlashLed(void)
 { 
@@ -332,6 +332,47 @@ void vTaskfFlashLed(void)
 			print_char(mod(r_count,10));
 			print_char(rem(r_count,10));
 		break;	
+	}
+}
+void TaskLedRunScan(void)
+{
+	static u8 LED_RUN_STEP=0;
+	LED_RUN_STEP++;
+	switch(LED_RUN_STEP)
+	{
+	case 1:
+		LED8[3] = ~0x01;
+		LED8[2] = ~0x00;
+		break;
+	case 2:
+		LED8[3] = ~0x02;
+		LED8[2] = ~0x00;
+		break;
+	case 3:
+		LED8[3] = ~0x04;
+		LED8[2] = ~0x00;
+		break;
+	case 4:
+		LED8[3] = ~0x08;
+		LED8[2] = ~0x00;
+		break;
+	case 5:
+		LED8[3] = ~0x00;
+		LED8[2] = ~0x08;
+		break;
+	case 6:
+		LED8[3] = ~0x00;
+		LED8[2] = ~0x10;
+		break;
+	case 7:
+		LED8[3] = ~0x00;
+		LED8[2] = ~0x20;
+		break;
+	case 8:
+		LED8[3] = ~0x00;
+		LED8[2] = ~0x01;
+		LED_RUN_STEP = 0;
+		break;
 	}
 }
 void Kled_Set(int status,u8 Nled)
