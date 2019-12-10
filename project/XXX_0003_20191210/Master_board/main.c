@@ -51,6 +51,12 @@ v1.1：
 #define KEY_INPUT3 P22  //【模式+】按键K3的输入口。
 #define KEY_INPUT4 P21  //【模式-】按键K4的输入口。
 #define GPIO_OUT_PIN   P10
+#define GPIO_VT_CHECK  P13
+#define PT2272_D0      P14
+#define PT2272_D1      P15
+#define PT2272_D2      P16
+#define PT2272_D3      P17
+#define PT2272_DATA(x)  x>>4
 BOOL update_flag = TRUE;
 BOOL Key_EventProtect = FALSE;
 
@@ -65,7 +71,8 @@ BOOL B_TX1_Busy;  	//发送忙标志
 
 volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 static u8 Gu8Step = 1;				  //switch 切换步骤
-
+int Key_Code=0xff;
+static u8 Key_CodeOld = 0x00 ;
 #define	INDEX_MAX 2	//显示位索引
 static u8 	Display_Code[3]={0x00,0x00,0x00};		//按键灯，L_MOS，H_MOS。
 //static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
@@ -80,7 +87,10 @@ u8 code t_display[]={						//共阴极标准字库，共阳取反
 //black	 -     H    J	 K	  L	   N	o   P	 U     t    G    Q    r   M    y
 	0x00,0x40,0x76,0x1E,0x70,0x38,0x37,0x5C,0x73,0x3E,0x78,0x3d,0x67,0x50,0x37,0x6e,
 	0xBF,0x86,0xDB,0xCF,0xE6,0xED,0xFD,0x87,0xFF,0xEF,0x46};	//0. 1. 2. 3. 4. 5. 6. 7. 8. 9. -1
-
+u8 code pt2272[] = {
+//   1     2    3    4    5    6    7    8   9    10   11   12   13   14   15
+	0x01,0x02,0x04,0x0a,0x0b,0x06,0x07,0x0c,0x09,0x03,0x0e,0x0d,0x0f,0x08,0x05	
+};
 
 /********************** A 给指示灯用的595 ************************/
 sbit	A_HC595_SER   = P3^4;	//pin 34	SER		data input
@@ -105,7 +115,7 @@ typedef struct _TASK_COMPONENTS
 } TASK_COMPONENTS;   
 static TASK_COMPONENTS TaskComps[] =
 {
-	{0, 1000,  1000, vTaskfFlashLed},           // led闪烁1s
+	{0, 10,  10, vTaskfFlashLed},           // led闪烁1s
 	{0, 10, 10, TaskDisplayScan},         		// 595控制刷新10ms一次
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
@@ -278,6 +288,52 @@ void Nled_Set(int status,u8 Nled)
 	Display_Code[2] = Bit16_ToBit8(val,1);//高8位
 	Display_Code[1] = Bit16_ToBit8(val,0);//低8位
 }
+int Get_Pt2272State(void)
+{
+	u8 i = 0,val;
+	for(i=0;i<15;i++)
+	{
+		if(PT2272_DATA(P1)==pt2272[i]) 
+		{
+			val = i+1;
+			break;
+		}
+		else 
+			val = 0;
+	}
+	return val;
+}
+void Transsion_Keycode(int key_code)
+{
+	print_char(key_code);
+	if(key_code==Key_CodeOld)
+		return;
+	switch(key_code)
+	{
+		print_char(key_code);
+		
+		case 0x01:
+		vGu8KeySec=1;    //触发开启键
+		Key_EventProtect = TRUE;
+		break;
+		case 0x02:
+		vGu8KeySec=3;    //触发+号键
+		Key_EventProtect = TRUE;
+		break;
+		case 0x03:
+		vGu8KeySec=4;    //触发-号键
+		Key_EventProtect = TRUE;
+		break;
+		case 0x04:
+		vGu8KeySec=2;    //触发2号键
+		Key_EventProtect = TRUE;
+		break;
+		default : 
+		break;
+		Key_CodeOld = key_code;
+	}
+	
+}
 void KeyScan(void)
 {
 	static unsigned char Su8KeyLock1;
@@ -288,6 +344,8 @@ void KeyScan(void)
 	static unsigned int  Su16KeyCnt3; 
 	static unsigned char Su8KeyLock4;
 	static unsigned int  Su16KeyCnt4; 
+	static unsigned char Su8KeyLock5;
+	static unsigned int  Su16KeyCnt5;
 	if(Key_EventProtect)
 		return;
     //【启动】按键K1的扫描识别
@@ -360,6 +418,17 @@ void KeyScan(void)
 			Kled_Set(ON,1);//按键灯亮
 		}
 	}
+	if(!GPIO_VT_CHECK)//如果为0 则未触发
+	{ 
+		key_led_on(0);	
+	}
+	else
+	{
+		key_led_on(1);
+		Key_Code = Get_Pt2272State();
+		Transsion_Keycode(Key_Code);
+			
+	}
 }
 void KeyTask(void)
 {
@@ -367,7 +436,6 @@ void KeyTask(void)
 	{
 		return; //按键的触发序号是0意味着无按键触发，不执行此函数下面的代码
 	}
-	print_char(vGu8KeySec);
 	if((Gu8Step == RUN_STOP)&&(vGu8KeySec != 1))
 	{
 		vGu8KeySec = 0;
@@ -481,13 +549,14 @@ void Led_StateUpdate(void)
 void TaskDisplayScan(void)//10ms 刷新一次
 { 
 	//vDataIn595(Display_Code[2]);//高8位MOS管的状态
-	//vDataIn595(Display_Code[1]);//低8位MOS管的状态
-	vDataIn595(Display_Code[0]);//输出按键指示灯状态
+	vDataIn595(Display_Code[1]);//低8位MOS管的状态
+	//vDataIn595(Display_Code[0]);//输出按键指示灯状态
 	vDataOut595();				//锁存输出数据
 }
 void vTaskfFlashLed(void)
 { 
-	key_led_reverse();
+	//key_led_reverse();
+	//print_char(Get_Pt2272State());
 }
 
 //========================================================================
