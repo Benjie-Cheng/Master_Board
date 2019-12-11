@@ -44,6 +44,11 @@ v1.1：
 	#define RUN_STOP 0xff
 	#define RUN_START 0x01
 	
+	#define KEY_START 0x01
+	#define KEY_UP    0x02
+	#define KEY_DOWN  0x03
+	#define KEY_STOP  0x04
+	
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
 
 #define KEY_INPUT1 P23  //【启动】按键K1的输入口。
@@ -117,7 +122,7 @@ typedef struct _TASK_COMPONENTS
 } TASK_COMPONENTS;   
 static TASK_COMPONENTS TaskComps[] =
 {
-	{0, 10,  10, vTaskfFlashLed},           // led闪烁1s
+	{0, 1000,  1000, vTaskfFlashLed},           // led闪烁1s
 	{0, 10, 10, TaskDisplayScan},         		// 595控制刷新10ms一次
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
@@ -307,31 +312,30 @@ int Get_Pt2272State(void)
 }
 void Transsion_Keycode(int key_code)
 {
-	
 	if(key_code==Key_CodeOld)
 		return;
-	print_char(key_code);
 	switch(key_code)
 	{
-		//print_char(key_code);
-		case 0x01:
+		case KEY_START:
 		vGu8KeySec=1;    //触发开启键
 		break;
-		case 0x02:
+		case KEY_UP:
 		vGu8KeySec=3;    //触发+号键
 		Kled_Set(ON,2);//按键+灯亮	
 		break;
-		case 0x03:
+		case KEY_DOWN:
 		vGu8KeySec=4;    //触发-号键
 		Kled_Set(ON,1);//按键-灯亮	
 		break;
-		case 0x04:
+		case KEY_STOP:
 		vGu8KeySec=2;    //触发4号键
 		Kled_Set(ON,0);//暂停键灯亮
-		
 		break;
 		default : 
+		vGu8KeySec=0;    //触发4号键
+		Key_EventProtect = FALSE;
 		break;
+		key_code = 0;
 		Key_CodeOld = key_code;
 	}
 	
@@ -348,6 +352,7 @@ void KeyScan(void)
 	static unsigned int  Su16KeyCnt4; 
 	static unsigned char Su8KeyLock5;
 	static unsigned int  Su16KeyCnt5;
+	
 	if(Key_EventProtect)
 		return;
     //【启动】按键K1的扫描识别
@@ -371,7 +376,8 @@ void KeyScan(void)
 	{
 		Su8KeyLock2=0;
 		Su16KeyCnt2=0; 
-		Kled_Set(OFF,0);//按键灯灭			
+		if(!Su8KeyLock5)
+			Kled_Set(OFF,0);//按键灯灭			
 	}
 	else if(0==Su8KeyLock2)
 	{
@@ -389,7 +395,8 @@ void KeyScan(void)
 	{
 		Su8KeyLock3=0;
 		Su16KeyCnt3=0; 
-		Kled_Set(OFF,2);//按键灯灭		
+		if(!Su8KeyLock5)
+			Kled_Set(OFF,2);//按键灯灭		
 	}
 	else if(0==Su8KeyLock3)
 	{
@@ -407,7 +414,8 @@ void KeyScan(void)
 	{
 		Su8KeyLock4=0;
 		Su16KeyCnt4=0; 
-		Kled_Set(OFF,1);//按键灯灭		
+		if(!Su8KeyLock5)
+			Kled_Set(OFF,1);//按键灯灭		
 	}
 	else if(0==Su8KeyLock4)
 	{
@@ -420,32 +428,39 @@ void KeyScan(void)
 			Kled_Set(ON,1);//按键灯亮
 		}
 	}
+	
 	if(Key_EventProtect)
 		return;//如果有按键按下，不执行遥控检测。
-	if(0!=PT2272_DATA(P1))//如果不为0则未触发
+	
+	if(!(P1&0xf0))//如果不为0则未触发
 	{ 
+	
 		Su8KeyLock5=0;
 		Su16KeyCnt5=0;
-		Kled_Set(OFF,0);//暂停键灯灭	
-		Kled_Set(OFF,1);//按键-灯灭	
-		Kled_Set(OFF,2);//按键+灯灭	
-		key_led_on(0);	
+		if(!Su8KeyLock2)
+			Kled_Set(OFF,0);//暂停键灯灭
+		else if(!Su8KeyLock3)
+			Kled_Set(OFF,2);//按键+灯灭	
+		else if(!Su8KeyLock4)
+			Kled_Set(OFF,1);//按键-灯灭	
 	}
 	else if(0==Su8KeyLock5)
 	{
 		Su16KeyCnt5++;
 		if(Su16KeyCnt5>=KEY_FILTER_TIME)
 		{
+			
 			Su8KeyLock5=1;  
 			Key_EventProtect = TRUE;
 			Key_Code = Get_Pt2272State();
-			Transsion_Keycode(Key_Code);
-			Kled_Set(ON,1);//按键灯亮
+			Transsion_Keycode(Key_Code);	
 		}
 	}
+	
 }
 void KeyTask(void)
 {
+	//print_char(vGu8KeySec);
 	if(0==vGu8KeySec)
 	{
 		return; //按键的触发序号是0意味着无按键触发，不执行此函数下面的代码
@@ -562,14 +577,14 @@ void Led_StateUpdate(void)
 
 void TaskDisplayScan(void)//10ms 刷新一次
 { 
-	//vDataIn595(Display_Code[2]);//高8位MOS管的状态
+	vDataIn595(Display_Code[2]);//高8位MOS管的状态
 	vDataIn595(Display_Code[1]);//低8位MOS管的状态
-	//vDataIn595(Display_Code[0]);//输出按键指示灯状态
+	vDataIn595(Display_Code[0]);//输出按键指示灯状态
 	vDataOut595();				//锁存输出数据
 }
 void vTaskfFlashLed(void)
 { 
-	//key_led_reverse();
+	key_led_reverse();
 	//print_char(Get_Pt2272State());
 }
 
@@ -587,6 +602,7 @@ void main(void)
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am LED controller XXX_0003_20191210!\n");
 	puts_to_SerialPort("Contact me: 15901856750\n");
+	Kled_Set(ON,3);//按键灯亮
 	while (1)
 	{	
 		KeyTask();    //按键的任务函数
