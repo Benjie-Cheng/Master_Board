@@ -11,8 +11,8 @@
 
 用STC的MCU的IO方式矩阵键盘交互和串口收发数据。
 1、开始按下或者运行灯一直亮，停止键按下亮一下灭掉，所有指示灯灭掉。
-2、模式+，模式- 按下LED亮，松手灭。
-3、
+2、模式+，模式- 按下LED亮，松手灭，模式对应+，-。
+3、PT2272 按键1开始，2+，3-，4暂停
 4、
 
 存在缺陷：
@@ -52,10 +52,12 @@ v1.1：
 #define KEY_INPUT4 P21  //【模式-】按键K4的输入口。
 #define GPIO_OUT_PIN   P10
 #define GPIO_VT_CHECK  P13
+/*
 #define PT2272_D0      P14
 #define PT2272_D1      P15
 #define PT2272_D2      P16
 #define PT2272_D3      P17
+*/
 #define PT2272_DATA(x)  x>>4
 BOOL update_flag = TRUE;
 BOOL Key_EventProtect = FALSE;
@@ -305,28 +307,28 @@ int Get_Pt2272State(void)
 }
 void Transsion_Keycode(int key_code)
 {
-	print_char(key_code);
+	
 	if(key_code==Key_CodeOld)
 		return;
+	print_char(key_code);
 	switch(key_code)
 	{
-		print_char(key_code);
-		
+		//print_char(key_code);
 		case 0x01:
 		vGu8KeySec=1;    //触发开启键
-		Key_EventProtect = TRUE;
 		break;
 		case 0x02:
 		vGu8KeySec=3;    //触发+号键
-		Key_EventProtect = TRUE;
+		Kled_Set(ON,2);//按键+灯亮	
 		break;
 		case 0x03:
 		vGu8KeySec=4;    //触发-号键
-		Key_EventProtect = TRUE;
+		Kled_Set(ON,1);//按键-灯亮	
 		break;
 		case 0x04:
-		vGu8KeySec=2;    //触发2号键
-		Key_EventProtect = TRUE;
+		vGu8KeySec=2;    //触发4号键
+		Kled_Set(ON,0);//暂停键灯亮
+		
 		break;
 		default : 
 		break;
@@ -418,16 +420,28 @@ void KeyScan(void)
 			Kled_Set(ON,1);//按键灯亮
 		}
 	}
-	if(!GPIO_VT_CHECK)//如果为0 则未触发
+	if(Key_EventProtect)
+		return;//如果有按键按下，不执行遥控检测。
+	if(0!=PT2272_DATA(P1))//如果不为0则未触发
 	{ 
+		Su8KeyLock5=0;
+		Su16KeyCnt5=0;
+		Kled_Set(OFF,0);//暂停键灯灭	
+		Kled_Set(OFF,1);//按键-灯灭	
+		Kled_Set(OFF,2);//按键+灯灭	
 		key_led_on(0);	
 	}
-	else
+	else if(0==Su8KeyLock5)
 	{
-		key_led_on(1);
-		Key_Code = Get_Pt2272State();
-		Transsion_Keycode(Key_Code);
-			
+		Su16KeyCnt5++;
+		if(Su16KeyCnt5>=KEY_FILTER_TIME)
+		{
+			Su8KeyLock5=1;  
+			Key_EventProtect = TRUE;
+			Key_Code = Get_Pt2272State();
+			Transsion_Keycode(Key_Code);
+			Kled_Set(ON,1);//按键灯亮
+		}
 	}
 }
 void KeyTask(void)
