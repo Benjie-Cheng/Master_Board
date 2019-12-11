@@ -579,6 +579,8 @@ void TaskDisplayScan(void)//10ms 刷新一次
 { 
 	vDataIn595(Display_Code[2]);//高8位MOS管的状态
 	vDataIn595(Display_Code[1]);//低8位MOS管的状态
+	vDataIn595(Display_Code[2]);//高8位MOS管的状态显示
+	vDataIn595(Display_Code[1]);//低8位MOS管的状态显示
 	vDataIn595(Display_Code[0]);//输出按键指示灯状态
 	vDataOut595();				//锁存输出数据
 }
