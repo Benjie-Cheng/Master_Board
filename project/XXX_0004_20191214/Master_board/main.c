@@ -95,6 +95,7 @@ volatile unsigned char vGu8TimeFlag_2=0;//5分钟计数
 volatile u32 vGu32TimeCnt_2=0;
 volatile unsigned char vGu8TimeFlag_3=0;//5分钟计数
 volatile u32 vGu32TimeCnt_3=0;
+unsigned int  uiKeyTimeCnt=0; //按键去抖动延时计数器 //按键去抖动延时计数器
 //#define LED_TIME_20MIN 1200000 //时间是 20*60000ms，无符号长整型计数
 //#define LED_TIME_5MIN  300000  //时间是 5*60000ms，无符号长整型计数
 
@@ -113,6 +114,7 @@ BOOL B_TX1_Busy;  	//发送忙标志
 
 volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 static u8 Gu8Step = 0;				  //switch 切换步骤
+static u8 ucKeyStep = 0;
 int Key_Code=0xff;
 #define	UART1_TX_LENGTH 19
 #define DISP_LENGTH 2
@@ -137,6 +139,7 @@ u8 code pt2272[] = {
 //   1     2    3    4    5    6    7    8   9    10   11   12   13   14   15
 	0x01,0x02,0x04,0x0a,0x0b,0x06,0x07,0x0c,0x09,0x03,0x0e,0x0d,0x0f,0x08,0x05	
 };
+u8 code KeyVal[] = {0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80};
 
 /********************** A 给指示灯用的595 ************************/
 sbit	A_HC595_SER   = P3^4;	//pin 34	SER		data input
@@ -228,7 +231,8 @@ void stc15x_hw_init(void)
 {
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
-	P2n_push_pull(0xff);	//设置为准双向口
+	//P2n_push_pull(0xff);	//设置为准双向口
+	P2n_standard(0xff);	//设置为准双向口
 	P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
@@ -238,6 +242,7 @@ void stc15x_hw_init(void)
 	GPIO_OUT_LIN2 = 0;//输出低，让按键检测
 	A_HC595_MR = 1;//复位禁止
 	A_HC595_OE = 0;//使能芯片
+	P2 = 0xff;
 }
 /**************** 向HC595发送一个字节函数 ******************/
 void vDataIn595(u8 dat)
@@ -346,6 +351,21 @@ int Get_Pt2272State(void)
 	for(i=0;i<15;i++)
 	{
 		if(PT2272_DATA(P1)==pt2272[i]) 
+		{
+			val = i+1;
+			break;
+		}
+		else 
+			val = 0;
+	}
+	return val;
+}
+int Get_KeyVal(void)
+{
+	u8 i = 0,val;
+	for(i=0;i<8;i++)
+	{
+		if(GPIO_OUT_ROW==(~KeyVal[i])) 
 		{
 			val = i+1;
 			break;
@@ -476,19 +496,77 @@ void State_EventProcess(void)
 }
 void KeyScan(void)
 {
-	static unsigned char Su8KeyLock1;
-	static unsigned int  Su16KeyCnt1;
-	static unsigned char Su8KeyLock2;
-	static unsigned int  Su16KeyCnt2; 	
-	static unsigned char Su8KeyLock3;
-	static unsigned int  Su16KeyCnt3; 
-	static unsigned char Su8KeyLock4;
-	static unsigned int  Su16KeyCnt4; 
 	static unsigned char Su8KeyLock5;
 	static unsigned int  Su16KeyCnt5;
-	
+
 	if(Key_EventProtect)//有按键未处理，不接受新按键事件
 		return;
+	switch(ucKeyStep)
+	{
+		case 0://全部拉低
+			GPIO_OUT_LIN1 = 0;
+			GPIO_OUT_LIN2 = 0;
+			ucKeyStep++;
+		case 1:     //此处的小延时用来等待刚才行输出信号稳定，再判断输入信号。不是去抖动延时。
+			uiKeyTimeCnt++;
+			if(uiKeyTimeCnt>1)
+			{
+				uiKeyTimeCnt=0;
+				ucKeyStep++;     //切换到下一个运行步骤
+			}
+			break;
+		case 2://如果有按键按下，去延时消抖
+			if(GPIO_OUT_ROW==0xff)
+				ucKeyStep = 0;
+			else
+				ucKeyStep++;
+			break;
+		case 3:
+			uiKeyTimeCnt++;
+			if(uiKeyTimeCnt>KEY_FILTER_TIME)//消抖
+			{
+				uiKeyTimeCnt=0;
+				ucKeyStep++;     //切换到下一个运行步骤
+			}
+			break;
+		case 4:
+			if(GPIO_OUT_ROW==0xff)
+				ucKeyStep = 0;
+			else if(GPIO_OUT_ROW!=0xff)
+			{
+				GPIO_OUT_LIN1 = 0;
+				GPIO_OUT_LIN2 = 1;
+				ucKeyStep++;     //切换到下一个运行步骤
+			}
+		case 5:
+			uiKeyTimeCnt++;
+			if(uiKeyTimeCnt>1)
+			{
+				uiKeyTimeCnt=0;
+				ucKeyStep++;     //切换到下一个运行步骤
+			}
+			break;
+		case 6:
+			if(GPIO_OUT_ROW!=0xff)//还是有触发
+			{
+				Key_Code = Get_KeyVal();//获取按键值
+			}
+			else 
+			{
+				Key_Code = 8+Get_KeyVal();//获取按键值
+			}
+			GPIO_OUT_LIN1 = 0;
+			GPIO_OUT_LIN2 = 0;
+			Key_EventProtect = TRUE;
+			ucKeyStep++;     //切换到下一个运行步骤
+		case 7:
+			if(GPIO_OUT_ROW==0xff)
+				ucKeyStep = 0;
+			break;	
+		default:
+			break;	
+	}
+/*
     //【启动】按键K1的扫描识别
 	if(0!=KEY_INPUT1)
 	{
@@ -562,7 +640,7 @@ void KeyScan(void)
 			//Kled_Set(ON,1);//按键灯亮
 		}
 	}
-	
+*/
 	if(Key_EventProtect)
 		return;//如果有按键按下，不执行遥控检测。
 	
@@ -615,7 +693,7 @@ void vTaskfFlashLed(void)
 		key_led_reverse();
 	else if(vGu8TimeFlag_2)//关状态运行
 		key_led_on(0);
-	//print_char(Get_Pt2272State());
+	//print_char(GPIO_OUT_ROW);
 }
 //========================================================================
 // 函数: void main(void)
@@ -632,6 +710,7 @@ void main(void)
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am LED controller XXX_0004_20191214!\n");
 	puts_to_SerialPort("Contact me: 15901856750\n");
+	key_led_on(0);
 	while (1)
 	{	
 		//KeyTask();    //按键的任务函数
