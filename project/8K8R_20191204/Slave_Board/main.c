@@ -46,6 +46,7 @@ v1.1：
 	#define KEY8_VAL 0x17
 
 #define CMD_ON_OFF_ALL 1
+u8 twice_cmd = 0;
 	
 //========================================================================
 /*************	本地变量声明	**************/
@@ -298,7 +299,13 @@ void Date_EventProcess(void)
 	}
 #if defined CMD_ON_OFF_ALL
 	if(KEY8_VAL == KeyCode)
-		print_string(LED_CMD);
+		if(twice_cmd){
+			print_string(LED_CMD);
+			print_string(LED_CMD);
+			twice_cmd = 0;
+		}
+		else
+			print_string(LED_CMD);
 	else
 		print_string(To_Marster_Data);
 #else
@@ -308,80 +315,58 @@ void Date_EventProcess(void)
 }
 void Key_EventProcess(int KeyCode)
 {
+	u8 LedBit = 0;
+	static u8 LED_ST = 0;
+	static u8 Odd_Flag = 1;//奇数标志
 	switch(KeyCode){
 	case KEY1_VAL:
-		Kled_Set(OFF_ON,0);//翻转状态
-		break;
 	case KEY2_VAL:
-		Kled_Set(OFF_ON,1);
-		break;
 	case KEY3_VAL:
-		Kled_Set(OFF_ON,2);
-		break;
 	case KEY4_VAL:
-		Kled_Set(OFF_ON,3);
-		break;
 	case KEY5_VAL:
-		Kled_Set(OFF_ON,4);
-		break;
 	case KEY6_VAL:
-		Kled_Set(OFF_ON,5);
-		break;
 	case KEY7_VAL:
-		Kled_Set(OFF_ON,6);
+		LedBit = KeyCode - 0x10;
+		Kled_Set(OFF_ON,LedBit);
+		if(getbit(Display_Code[0],LedBit))
+			LED_ST++;
+		else
+			LED_ST--;
 		break;
 	case KEY8_VAL:
-		Key8_status ++;
-#if defined CMD_ON_OFF_ALL
-		if(rem(Key8_status,2))
-#else
-		if(Display_Code[0]==0xff){
-			Kled_Set(OFF_ALL,7);//全灭
-			Key8_status = 0;
-		}
-		else if(rem(Key8_status,2))
-#endif
-		{
-			Kled_Set(ON_ALL,7);//全亮
-		}
-		else
+		if(LED_ST==7)//不管奇偶，全灭
 		{
 			Kled_Set(OFF_ALL,7);//全灭
+			LED_ST = 0;//计数清0
+			if(Odd_Flag==1)
+				twice_cmd =1;
+			Odd_Flag = 1;//奇数
+			
 		}
-		if(Key8_status >=2)
-			Key8_status = 0;
+		else if(Odd_Flag)//奇数
+		{
+			Kled_Set(ON,7);//全亮
+			LED_ST = 7;
+			Odd_Flag = 0;//设置为偶数
+		}
+		else if(Odd_Flag==0)//是偶数
+		{
+			Kled_Set(OFF_ALL,7);//全灭	
+			LED_ST = 0;	
+			Odd_Flag = 1;//奇数		
+		}
 		break;
 	default:
 		break;	
 	}
-
-	if(Get_Led8Set()==1)//1-7灭时,8灭
-	{
-#if defined CMD_ON_OFF_ALL
-		//Key8_status = 0;
-#else
-		Key8_status = 0;
-#endif
-		Kled_Set(OFF,7);//8灯灭
-	}	
-	else if(Get_Led8Set()==2)//1-7亮时,8亮
-	{
-		Kled_Set(ON,7);//8灯灭
-#if defined CMD_ON_OFF_ALL
-		//Key8_status = 1;
-#else
-		Key8_status = 1;
-#endif
-	}
+	if(LED_ST>0)
+		Kled_Set(ON,7);//8灯亮
 	else
-	{
 		Kled_Set(OFF,7);//8灯灭
-		//Key8_status = 0;
-	}
+	
 	vDataIn595(Display_Code[0]);
 	vDataOut595();
 	if(KeyCode){
-		
 		Date_EventProcess();//按键值转换成发给主机格式的值并串口发送;
 		KeyCode = 0;//清除按键触发值
 	}
