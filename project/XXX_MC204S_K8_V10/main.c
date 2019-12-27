@@ -79,14 +79,7 @@ PT2272芯片控制管脚
 */
 #define PT2272_DATA(x)  x>>0
 
-/**********************************
-TM1650芯片控制数码管
-P32为SCL口
-P14为SDA口
-**********************************/
- 
-#define SCL_TM1650	P32
-#define SDA_TM1650	P14
+
 #define SET_SCL_OUT_TM1650()    //{SCL_TM1650=1; PC_CR1_C17 = 1; PC_CR2_C27 = 0;}
 #define SET_SDA_OUT_TM1650()    //{PC_DDR_DDR6=1; PC_CR1_C16 = 1; PC_CR2_C26 = 0;}
 #define SET_SDA_IN_TM1650()     //{PC_DDR_DDR6=0; PC_CR1_C16 = 0; PC_CR2_C26 = 0;}
@@ -117,12 +110,10 @@ static u8 ucKeyStep = 0;
 volatile unsigned char Key_Code=0xff;//定时器中断中使用
 #define DISP_LENGTH 2
 static u8 	Display_Code[DISP_LENGTH]={0x00,0x00};		   //按键灯，L_MOS，H_MOS。
-
-u8 TM1650CODE[10] = {0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x6f}; //0~9 TM1650显示代码
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
-u8 code t_display[]={						//共阴极标准字库，共阳取反
+u8 code TM1650_CODE[]={						//TM1650显示代码,共阴极标准字库，共阳取反
 //	 0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
 	0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F,0x77,0x7C,0x39,0x5E,0x79,0x71,
 //black	 -     H    J	 K	  L	   N	o   P	 U     t    G    Q    r   M    y
@@ -454,49 +445,6 @@ void vTaskfFlashLed(void)//1s 一次
 	//print_char(GPIO_OUT_ROW);
 }
 
-
-
-void I2C_Start_TM1650(void)//开始信号
-{
-    // SDA 1->0 while SCL High
-  	//SCL高电平期间，SDA出现一个下降沿表示起始信号
-  	//SET_SDA_OUT_TM1650();
-    SDA_TM1650 = 1;    	//数据线先保持为高，起始信号要该口的下降沿 
-	//TDelay_us(4);
-    SCL_TM1650 = 1;        //时钟线保持为高            
-    TDelay_us(40);    //有一个大概5us的延时具体以器件而定            
-    SDA_TM1650 = 0;        //数据线拉低出现下降沿           
-   // TDelay_us(4);    //延时 一小会，保证可靠的下降沿            
-   // SCL_TM1650 = 0;        //拉低时钟线，保证接下来数据线允许改变
-}
-
-void I2C_Stop_TM1650(void)
-{
-    // SDA 0->1 while SCL High
-    //SCL高电平期间，SDA产生一个上升沿 表示停止
-	SDA_TM1650 = 0;		//保证数据线为低电平
-    SCL_TM1650 = 1;		//先保证时钟线为高电平
-    TDelay_us(5);      //延时 以得到一个可靠的电平信号            
-    SDA_TM1650 = 1;    //数据线出现上升沿           
-    TDelay_us(5);      //延时 保证一个可靠的高电平           
-}
-//应答函数
-void IIC_Ack_TM1650(void)
-{
-    //数据线一直保持为低电平，时钟线出现上升沿即为应答
- 
-	SET_SDA_OUT_TM1650();
-	TDelay_us(10);
-    SDA_TM1650 = 0;
-    TDelay_us(10);
-    SCL_TM1650 = 0;
-    TDelay_us(40);
-	SCL_TM1650 = 1;
-	TDelay_us(40);
-    //应答完成后 将时钟线拉低 允许数据修改
-    SCL_TM1650 = 0;
-}
-
 //========================================================================
 // 函数: void main(void)
 // 描述: 主程序.
@@ -512,6 +460,7 @@ void main(void)
 	puts_to_SerialPort("I am LED controller XXX_MC204S_K8_V10!\n");
 	puts_to_SerialPort("Contact me: 15901856750\n");
 	key_led_on(0);
+	Init_Tm1650()//数码管开显示
 	while (1)
 	{	
 		//Led_StateUpdate();//LED状态更新
