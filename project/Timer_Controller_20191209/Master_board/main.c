@@ -482,24 +482,25 @@ void KeyTask(void)
 	{
 		case 1:     //按键K1
 			vGu8KeySec=0;
-			BitX_Set(OFF_ON,6);//【继电器3】取反;			
+					
 			if(++off_time_set>20)
 				off_time_set =0;
 			update_flag = TRUE;
 			break;
 		case 2:     //按键K2
-			BitX_Set(OFF_ON,5);//【继电器2】取反;
+			
 			if(++on_time_set>20)
 				on_time_set =0;
 			vGu8KeySec=0;  
 			update_flag = TRUE;
 			break;
 		case 3:     //按键K3
-			
+			BitX_Set(OFF_ON,6);//【继电器3】取反;	
 			vGu8KeySec=0;  
 			break;
 		case 4:     //按键K4
 			vGu8KeySec=0; 
+			BitX_Set(OFF_ON,5);//【继电器2】取反;
 			BitX_Set(OFF_ON,7);//【LED状态】取反;
 			//EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 			break;
@@ -522,25 +523,29 @@ void Channle_Sw(void)
 	{
 		case 0:
 			vGu8TimeFlag_1 = 1;
-			off_time = E2PROM_Strings[1];//赋值EEPROM值
+			
 			BitX_Set(ON,4);//【继电器1】开;
 			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
 				vGu32TimeCnt_1 = 0;
 				on_time--;
-				if(on_time==0)
+				if(on_time==0){
 					Gu8Step++;
+					off_time = E2PROM_Strings[1];//赋值EEPROM值
+				}
 			}	
 			break;
 		case 1:
-			on_time = E2PROM_Strings[0];//赋值EEPROM值
+			
 			BitX_Set(OFF,4);//【继电器1】开;
 			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
 				vGu32TimeCnt_1 = 0;
 				off_time--;
-				if(off_time <= 0)
+				if(off_time <= 0){
 					Gu8Step = 0;
+					on_time = E2PROM_Strings[0];//赋值EEPROM值
+				}
 			}
 			break;
 		default:	
