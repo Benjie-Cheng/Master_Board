@@ -17,12 +17,13 @@
 
 #include	"config.h"
 
+//15W EEPROM 起始扇区地址
 #define IAP_ADDRESS 0x0000
 
-#define CMD_IDLE    0               //????
-#define CMD_READ    1               //IAP?????
-#define CMD_PROGRAM 2               //IAP??????
-#define CMD_ERASE   3               //IAP??????
+#define CMD_IDLE    0               //空闲模式
+#define CMD_READ    1               //IAP字节读命令
+#define CMD_PROGRAM 2               //IAP字节编程命令
+#define CMD_ERASE   3               //IAP扇区擦除命令
 
 
 //#define ENABLE_IAP 0x80           //if SYSCLK<30MHz
