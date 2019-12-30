@@ -41,7 +41,8 @@ v1.1：
 	#define GREEN_LED   0
 	#define CAR_LED     3
 	
-	
+
+volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 //主板5个按键定义
 #define	KEY1_GPIO P12
 #define	KEY2_GPIO P13
@@ -58,12 +59,21 @@ u8 cnt50ms;  //50ms计数
 u8 cnt10ms;  //10ms计数
 BOOL B_TX1_Busy;  //发送忙标志
 
+
+//“软件定时器 1” 的相关变量
+volatile unsigned char vGu8TimeFlag_1=0;
+volatile u32 vGu32TimeCnt_1=0;	
+static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
+
 #define     E2PROM_LENGTH 2
-static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x02,0x03};//data0：通时间，data1：关时间
+static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x10,0x11};//data0：通时间，data1：关时间
 static u8	tmp[E2PROM_LENGTH] = {0x01,0x01};
 
 BOOL flash_flag = TRUE;//闪烁灯允许运行标志
-BOOL update_flag = FALSE;//EEPROM 更新标志
+BOOL update_flag = FALSE;//EEPROM 更新标?
+BOOL dot_flag = TRUE;//闪烁灯允许运行标志
+BOOL display_eeprom = TRUE;//显示EEPROM 时间
+BOOL Key_EventProtect = FALSE;
 
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
 
@@ -76,7 +86,8 @@ BOOL update_flag = FALSE;//EEPROM 更新标志
 static u8 	Display_Code[2]={0x00,0x00};		//数码管段码和位码，继电器和led状态。
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
 static u8	display_index = 0;						//显示位索引	
-
+static u8   on_time = 0,off_time = 0;
+static u8   on_time_set = 0,off_time_set = 0;
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
@@ -104,7 +115,8 @@ void KeyTask(void);
 void TaskDisplayScan(void);
 void vTaskfFlashLed(void);
 void TaskLedRunScan(void);
-
+void Date_Transform(u8 num1,u8 num2);
+	
 typedef struct _TASK_COMPONENTS
 {
 	u8 Run;                 // 程序运行标记：0-不运行，1运行
@@ -115,7 +127,7 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
-	{0, 80, 80, TaskLedRunScan},         		// 跑马灯	
+	{0, 100, 100, TaskLedRunScan},         		// 跑马灯	
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus}
@@ -267,7 +279,11 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	_nop_();
 	_nop_();
 	BitX_Set(OFF,display_index);//改变亮度
-#endif		
+#endif	
+		if(display_eeprom)
+			Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
+		else 
+			Date_Transform(on_time,off_time);
 		Display_Code[0] = LED8[display_index];
 
 		vDataIn595(Display_Code[1]);//输出位码
@@ -279,22 +295,27 @@ void vTaskfFlashLed(void)
 { 
 	if(flash_flag)
 		key_led_reverse();
-	puts_to_SerialPort(tmp);
+	puts_to_SerialPort(E2PROM_Strings);
 	
 }
 void TaskLedRunScan(void)
 {
 	static u8 LED_RUN_STEP=0;
+	
 	LED_RUN_STEP++;
+	dot_flag = ~dot_flag;
 	switch(LED_RUN_STEP)
 	{
 	case 1:
-		LED8[3] = ~0x01;
-		LED8[2] = ~0x00;
+		//LED8[3] = ~0x01;
+		//LED8[2] = ~0x00;
+		//LED8[3] = LED8[3] & 0x7f;
 		break;
 	case 2:
-		LED8[3] = ~0x02;
-		LED8[2] = ~0x00;
+		//LED8[3] = LED8[3] | 0x80;
+		//LED8[3] = ~0x02;
+		//LED8[2] = ~0x00;
+		LED_RUN_STEP = 0;
 		break;
 	case 3:
 		LED8[3] = ~0x04;
@@ -327,8 +348,16 @@ void Date_Transform(u8 num1,u8 num2)
 {	
 	LED8[0] = ~t_display[mod(num1,10)];
 	LED8[1] = ~t_display[rem(num1,10)];
-	LED8[0] = ~t_display[mod(num2,10)];
-	LED8[1] = ~t_display[rem(num2,10)];
+	LED8[2] = ~t_display[mod(num2,10)];	
+	LED8[3] = ~t_display[rem(num2,10)];
+	if(dot_flag){
+		if(Gu8Step==0)
+			LED8[1] &=0x7f;
+		else
+			LED8[3] &=0x7f;
+	}
+		
+	
 	//if(),如果按键按下，可以让小数点闪烁&7f
 }
 void Kled_Set(int status,u8 Nled)
@@ -452,33 +481,72 @@ void KeyTask(void)
 	switch(vGu8KeySec) //根据不同的按键触发序号执行对应的代码
 	{
 		case 1:     //按键K1
-			BitX_Set(OFF_ON,4);//【继电器1】取反;
-			vGu8KeySec=0; 
+			vGu8KeySec=0;
+			BitX_Set(OFF_ON,6);//【继电器3】取反;			
+			if(++off_time_set>20)
+				off_time_set =0;
+			update_flag = TRUE;
 			break;
 		case 2:     //按键K2
 			BitX_Set(OFF_ON,5);//【继电器2】取反;
+			if(++on_time_set>20)
+				on_time_set =0;
 			vGu8KeySec=0;  
+			update_flag = TRUE;
 			break;
 		case 3:     //按键K3
-			BitX_Set(OFF_ON,6);//【继电器3】取反;
+			
 			vGu8KeySec=0;  
 			break;
 		case 4:     //按键K4
 			vGu8KeySec=0; 
 			BitX_Set(OFF_ON,7);//【LED状态】取反;
-			EEPROM_read_n(IAP_ADDRESS,tmp,E2PROM_LENGTH);
+			//EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 			break;
 		case 5:     //按键K5
+			
 			vGu8KeySec=0; 
-			update_flag = TRUE;
+			display_eeprom = ~display_eeprom;
 			break;
 		default:     
 			 
 			break;
 	}
-
+	E2PROM_Strings[0] = on_time_set;
+	E2PROM_Strings[1] = off_time_set;
 	Key_EventProtect = FALSE;
 }	
+void Channle_Sw(void)
+{
+	switch(Gu8Step)
+	{
+		case 0:
+			vGu8TimeFlag_1 = 1;
+			off_time = E2PROM_Strings[1];//赋值EEPROM值
+			BitX_Set(ON,4);//【继电器1】开;
+			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			{
+				vGu32TimeCnt_1 = 0;
+				on_time--;
+				if(on_time==0)
+					Gu8Step++;
+			}	
+			break;
+		case 1:
+			on_time = E2PROM_Strings[0];//赋值EEPROM值
+			BitX_Set(OFF,4);//【继电器1】开;
+			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			{
+				vGu32TimeCnt_1 = 0;
+				off_time--;
+				if(off_time <= 0)
+					Gu8Step = 0;
+			}
+			break;
+		default:	
+			break;
+	}
+}
 //========================================================================
 // 函数: void main(void)
 // 描述: 主程序.
@@ -488,29 +556,33 @@ void KeyTask(void)
 //========================================================================
 void main(void)
 {
-	u16 i;
 	stc15x_hw_init();
 	vDataIn595(0x7f);
 	vDataIn595(0x00);
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am Traffic Lights!\n");
+	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
+	on_time_set = on_time = E2PROM_Strings[0];
+	off_time_set = off_time = E2PROM_Strings[1];
 	while(1)
 	{
 		if(B_1ms)	//1ms到
 		{
 			B_1ms = 0;	
+			Channle_Sw();
 			KeyTask();    //按键的任务函数
 			TaskProcess();//数码管跑马和led闪烁
-			TaskDisplayScan();
 			if(update_flag)//需要写入参数到EEPROM
 			{
 				EEPROM_SectorErase(IAP_ADDRESS);
-				delay_ms(5);
+				//delay_ms(1);
 				EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 				update_flag = FALSE;
-				delay_ms(5);
+				//delay_ms(1);
+				EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 			}
 		}
+		TaskDisplayScan();
 	}
 }
 
@@ -522,6 +594,11 @@ void timer0 (void) interrupt TIMER0_VECTOR
 	B_1ms = 1;		//1ms标志
 	KeyScan();
 	TaskRemarks();
+	if(vGu8TimeFlag_1){
+		vGu32TimeCnt_1++;
+	}
+	else
+		vGu32TimeCnt_1 = 0;
 }
 //========================================================================
 // 函数: void print_string(u8 *puts)
