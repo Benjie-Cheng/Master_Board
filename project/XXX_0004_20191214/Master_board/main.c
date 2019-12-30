@@ -166,7 +166,7 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // led闪烁1s
-	{0, 10, 10, TaskDisplayScan},         		// 595控制刷新10ms一次
+//	{0, 10, 10, TaskDisplayScan},         		// 595控制刷新10ms一次
 //	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus}
@@ -175,7 +175,7 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // 运行LED
-	TAST_595_UPDATE,        // 显示时钟
+//	TAST_595_UPDATE,        // 显示时钟
 //	TASK_KEY_SERV,
 //	TASK_RTC,
 //	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
@@ -237,9 +237,12 @@ void stc15x_hw_init(void)
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
 	timer0_init();
-	uart1_config();
+	//uart1_config();
 	GPIO_OUT_LIN1 = 0;//输出低，让按键检测
 	GPIO_OUT_LIN2 = 0;//输出低，让按键检测
+	A_HC595_MR = 0;//复位
+	NOP2();
+	NOP2();
 	A_HC595_MR = 1;//复位禁止
 	A_HC595_OE = 0;//使能芯片
 	P2 = 0xff;
@@ -683,16 +686,19 @@ void TaskDisplayScan(void)//595控制刷新10ms一次
 		vDataOut595();
 		return;
 	}
-	vDataIn595(Display_Code[1]);//输出按键指示灯低高位状态
+	vDataIn595(Display_Code[0]);//输出按键指示灯低高位状态
+	vDataIn595(Display_Code[0]);//输出按键指示灯低高位状态
 	vDataIn595(Display_Code[0]);//输出按键指示灯低8位状态
+//	vDataIn595(0xaa);
+//	vDataIn595(0xaa);
 	vDataOut595();				//锁存输出数据
 }
 void vTaskfFlashLed(void)
 { 
-	if(vGu8TimeFlag_1)//开状态运行
+	//if(vGu8TimeFlag_1)//开状态运行
 		key_led_reverse();
-	else if(vGu8TimeFlag_2)//关状态运行
-		key_led_on(0);
+//	else if(vGu8TimeFlag_2)//关状态运行
+//		key_led_on(0);
 	//print_char(GPIO_OUT_ROW);
 }
 //========================================================================
@@ -705,12 +711,12 @@ void vTaskfFlashLed(void)
 void main(void)
 {
 	stc15x_hw_init();
-	vDataIn595(0x00);
-	vDataIn595(0x00);
-	vDataOut595();	//开机默认关闭通道显示LED
-	puts_to_SerialPort("I am LED controller XXX_0004_20191214!\n");
-	puts_to_SerialPort("Contact me: 15901856750\n");
-	key_led_on(0);
+	//vDataIn595(0x00);
+	//vDataIn595(0x00);
+	//vDataOut595();	//开机默认关闭通道显示LED
+	//puts_to_SerialPort("I am LED controller XXX_0004_20191214!\n");
+	//puts_to_SerialPort("Contact me: 15901856750\n");
+	//key_led_on(0);
 	while (1)
 	{	
 		//KeyTask();    //按键的任务函数
@@ -728,6 +734,7 @@ void main(void)
 void timer0 (void) interrupt TIMER0_VECTOR
 {
 	B_1ms = 1;		//1ms标志
+
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
 	}
@@ -743,7 +750,8 @@ void timer0 (void) interrupt TIMER0_VECTOR
 	}
 	else
 		vGu32TimeCnt_3 = 0;	
-	KeyScan();
+	//KeyScan();
+
 	TaskRemarks();
 }
 //========================================================================
