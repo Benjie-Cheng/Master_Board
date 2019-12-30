@@ -25,12 +25,11 @@ v1.1£º
 ******************************************/
 #include "config.h"
 #include "debug.h"
-#include 	"eeprom.h"
+#include "eeprom.h"
 
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 ÖÐ¶ÏÆµÂÊ, 1000´Î/Ãë
 #define	Baudrate1	115200UL                                //Í¨ÐÅ²¨ÌØÂÊ115200
 
-#define KEY_LED_GPIO P55
 
 	#define ON       1
 	#define OFF      0
@@ -42,8 +41,13 @@ v1.1£º
 	#define GREEN_LED   0
 	#define CAR_LED     3
 	
-#define GPIO_CHECK_PIN P26
-#define GPIO_OUT_PIN   P10
+	
+//Ö÷°å5¸ö°´¼ü¶¨Òå
+#define	KEY1_GPIO P12
+#define	KEY2_GPIO P13
+#define	KEY3_GPIO P14
+#define	KEY4_GPIO P15
+#define	KEY5_GPIO P33
 
 //========================================================================
 /*************	±¾µØ±äÁ¿ÉùÃ÷	**************/
@@ -54,31 +58,22 @@ u8 cnt50ms;  //50ms¼ÆÊý
 u8 cnt10ms;  //10ms¼ÆÊý
 BOOL B_TX1_Busy;  //·¢ËÍÃ¦±êÖ¾
 
-//¡°Èí¼þ¶¨Ê±Æ÷ 1¡± µÄÏà¹Ø±äÁ¿
-volatile unsigned char vGu8TimeFlag_1=0;
-volatile u32 vGu32TimeCnt_1=0;	
-volatile unsigned char vGu8TimeFlag_2=0;
-volatile unsigned int vGu16TimeCnt_2=0;	
-volatile unsigned char vGu8LeveCheckFlag=0;
+#define     E2PROM_LENGTH 2
+static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x02,0x03};//data0£ºÍ¨Ê±¼ä£¬data1£º¹ØÊ±¼ä
+static u8	tmp[E2PROM_LENGTH] = {0x01,0x01};
 
-#define G_LED_TIME 59
-#define Y_LED_TIME 4
-#define R_LED_TIME 29	
-volatile unsigned int g_count = G_LED_TIME;
-volatile unsigned int y_count = Y_LED_TIME;
-volatile unsigned int r_count = R_LED_TIME;
-BOOL flash_flag = TRUE;
+BOOL flash_flag = TRUE;//ÉÁË¸µÆÔÊÐíÔËÐÐ±êÖ¾
+BOOL update_flag = FALSE;//EEPROM ¸üÐÂ±êÖ¾
 
-#define GPIO_FILTER_TIME 50 //ÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± 50ms
+#define KEY_FILTER_TIME 20 //ÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± 20ms
 
 #define LED_TIME_1S  1000  //Ê±¼äÊÇ 10000ms
 #define LED_TIME_60S 60000 //Ê±¼äÊÇ 60000ms
 #define LED_TIME_65S 65000 //Ê±¼äÊÇ 65000ms
 #define LED_TIME_95S 95000 //Ê±¼äÊÇ 95000ms
 
-static u8 Gu8Step = 0; //Èí¼þ¶¨Ê±Æ÷ 1 µÄ switch ÇÐ»»²½Öè
 #define	INDEX_MAX 4	//ÏÔÊ¾Î»Ë÷Òý
-static u8 	Display_Code[3]={0x00,0x00,0x00};		//1¸ö595¿ØÖÆ°´¼ü°åLEDµÆ,Á½¸ö595ÊýÂë¹Üµ¹¼ÆÊ±¡£
+static u8 	Display_Code[2]={0x00,0x00};		//ÊýÂë¹Ü¶ÎÂëºÍÎ»Âë£¬¼ÌµçÆ÷ºÍled×´Ì¬¡£
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//ÏÔÊ¾»º³åÖ§³ÖËÄÎ»
 static u8	display_index = 0;						//ÏÔÊ¾Î»Ë÷Òý	
 
@@ -104,7 +99,8 @@ void uart1_config();	// Ñ¡Ôñ²¨ÌØÂÊ, 2: Ê¹ÓÃTimer2×ö²¨ÌØÂÊ, ÆäËüÖµ: Ê¹ÓÃTimer1×ö²
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
-int Get_KeyVal(int val);
+void KeyScan(void);
+void KeyTask(void);
 void TaskDisplayScan(void);
 void vTaskfFlashLed(void);
 void TaskLedRunScan(void);
@@ -119,7 +115,7 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // °´¼üÉ¨Ãè1s
-//	{0, 80, 80, TaskLedRunScan},         		// ÅÜÂíµÆ	
+	{0, 80, 80, TaskLedRunScan},         		// ÅÜÂíµÆ	
 //	{0, 50, 50, vKey_Service}					// °´¼ü·þÎñ³ÌÐò50ms
 //	{0, 10, 10, TaskRTC}				        // RTCµ¹¼ÆÊ±
 //	{0, 30, 30, TaskDispStatus}
@@ -128,7 +124,7 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // ÔËÐÐLED
-//	TAST_LED_RUN,        	//ÅÜÂíµÆ
+	TAST_LED_RUN,        	//ÅÜÂíµÆ
 //	TASK_KEY_SERV,
 //	TASK_RTC,
 //	TASK_DISP_WS,             // ¹¤×÷×´Ì¬ÏÔÊ¾// ÕâÀïÌí¼ÓÄãµÄÈÎÎñ¡£¡£¡£¡£
@@ -190,9 +186,13 @@ void stc15x_hw_init(void)
 	P5n_standard(0xff);	//ÉèÖÃÎª×¼Ë«Ïò¿Ú	
 	timer0_init();
 	uart1_config();
-	GPIO_OUT_PIN = 0;//Êä³öµÍ£¬ÈÃP26¼ì²â
 	//A_HC595_MR = 1;//¸´Î»½ûÖ¹
 	//A_HC595_OE = 0;//Ê¹ÄÜÐ¾Æ¬
+	KEY1_GPIO = 1;//°´¼üÒý½Å£¬Ä¬ÈÏÀ­¸ßµçÆ½
+	KEY2_GPIO = 1;//°´¼üÒý½Å£¬Ä¬ÈÏÀ­¸ßµçÆ½
+	KEY3_GPIO = 1;//°´¼üÒý½Å£¬Ä¬ÈÏÀ­¸ßµçÆ½
+	KEY4_GPIO = 1;//°´¼üÒý½Å£¬Ä¬ÈÏÀ­¸ßµçÆ½
+	KEY5_GPIO = 1;//°´¼üÒý½Å£¬Ä¬ÈÏÀ­¸ßµçÆ½
 }
 /**************** ÏòHC595·¢ËÍÒ»¸ö×Ö½Úº¯Êý ******************/
 void vDataIn595(u8 dat)
@@ -243,57 +243,20 @@ void TaskProcess(void)
 		}
 	}
 }
-/*****************************************************
-	ÐÐÁÐ¼üÉ¨Ãè³ÌÐò
-	Ê¹ÓÃXY²éÕÒ8x8¼üµÄ·½·¨£¬Ö»ÄÜµ¥¼ü£¬ËÙ¶È¿ì
-
-    Y  P20   P21   P22   P23   P24   P25   P26   P27
-        |     |     |     |     |     |     |     |
-X       |     |     |     |     |     |     |     |
-P10 -- K00 - K01 - K02 - K03 - K04 - K05 - K06 - K07
-        |     |     |     |     |     |     |     |
-P11 -- K08 - K09 - K10 - K11 - K12 - K13 - K14 - K15
-        |     |     |     |     |     |     |     |
-P12 -- K16 - K17 - K18 - K19 - K20 - K21 - K22 - K23
-        |     |     |     |     |     |     |     |
-P13 -- K24 - K25 - K26 - K27 - K28 - K29 - K30 - K31
-        |     |     |     |     |     |     |     |
-P14 -- K32 - K33 - K34 - K35 - K36 - K37 - K38 - K39
-        |     |     |     |     |     |     |     |
-P15 -- K40 - K41 - K42 - K43 - K44 - K45 - K46 - K47
-        |     |     |     |     |     |     |     |
-P16 -- K48 - K49 - K50 - K51 - K52 - K53 - K54 - K55
-        |     |     |     |     |     |     |     |
-P17 -- K56 - K57 - K58 - K59 - K60 - K61 - K62 - K63
-******************************************************/
-void gpio_key_delay(void)
-{
-	u8 i;
-	i = 60;
-	while(--i)	;
-}
 void BitX_Set(int status,u8 Xbit)
 {
-/*
 	u8 val;
-	Display_Code[2] = 0x00;//½«µÍËÄÎ»ÏÈÇå0£¬ÔÙÖÃÎ»£¬Ã¿´ÎÖ»ÄÜÁÁÒ»Î»
-	val = Display_Code[2];
-	if(En)
-		Display_Code[2] = setbit(val,Xbit);//¹²Ñô¼«¸ßµçÆ½µ¼Í¨Èý¼«¹Ü	
-*/
-	u8 val;
-	//val = Display_Code[2];
-	val =0x00;
+	val = Display_Code[1]&0xf0;//µÍËÄÎ»Ã¿´ÎÇåÁã£¬ÓÃÓÚÊýÂë¹ÜÎ»É¨Ãè
 	if(status==ON)
-		Display_Code[2] = setbit(val,Xbit);//¸ßµçÆ½µ¼Í¨
+		Display_Code[1] = setbit(val,Xbit);//¸ßµçÆ½µ¼Í¨
 	else if(status==OFF)
-		Display_Code[2] = clrbit(val,Xbit);	
+		Display_Code[1] = clrbit(val,Xbit);	
 	else if(ON_ALL == status)	
-		Display_Code[2] = 0xff;
+		Display_Code[1] = 0xff;
 	else if(OFF_ALL == status)
-		Display_Code[2] = 0x00;
+		Display_Code[1] = 0x00;
 	else if(OFF_ON == status)
-		Display_Code[2] = reversebit(val,Xbit);//·­×ª
+		Display_Code[1] = reversebit(val,Xbit);//·­×ª
 }
 void TaskDisplayScan(void)//10ms Ë¢ÐÂÒ»´Î
 { 
@@ -305,35 +268,19 @@ void TaskDisplayScan(void)//10ms Ë¢ÐÂÒ»´Î
 	_nop_();
 	BitX_Set(OFF,display_index);//¸Ä±äÁÁ¶È
 #endif		
-		Display_Code[1] = LED8[display_index];
+		Display_Code[0] = LED8[display_index];
 
-	//	vDataIn595(Display_Code[2]);//Êä³öÎ»Âë
-	//	vDataIn595(Display_Code[1]);//Êä³ö¶ÏÂë
-		//vDataIn595(Display_Code[2]);//Êä³öÎ»Âë
-		//vDataIn595(Display_Code[1]);//Êä³ö¶ÏÂë
-	//	vDataIn595(Display_Code[0]);//Êä³öºìÂÌµÆ×´Ì¬
-		//vDataOut595();				//Ëø´æÊä³öÊý¾Ý
+		vDataIn595(Display_Code[1]);//Êä³öÎ»Âë
+		vDataIn595(Display_Code[0]);//Êä³ö¶ÏÂë
+		vDataOut595();				//Ëø´æÊä³öÊý¾Ý
 	}	
 }
 void vTaskfFlashLed(void)
 { 
 	if(flash_flag)
 		key_led_reverse();
-	switch(Gu8Step)
-	{
-		case 0:	
-			print_char(mod(g_count,10));
-			print_char(rem(g_count,10));
-		break;
-		case 1:
-			print_char(mod(y_count,10));
-			print_char(rem(y_count,10));
-		break;			
-		case 2:
-			print_char(mod(r_count,10));
-			print_char(rem(r_count,10));
-		break;	
-	}
+	puts_to_SerialPort(tmp);
+	
 }
 void TaskLedRunScan(void)
 {
@@ -376,105 +323,162 @@ void TaskLedRunScan(void)
 		break;
 	}
 }
+void Date_Transform(u8 num1,u8 num2)
+{	
+	LED8[0] = ~t_display[mod(num1,10)];
+	LED8[1] = ~t_display[rem(num1,10)];
+	LED8[0] = ~t_display[mod(num2,10)];
+	LED8[1] = ~t_display[rem(num2,10)];
+	//if(),Èç¹û°´¼ü°´ÏÂ£¬¿ÉÒÔÈÃÐ¡ÊýµãÉÁË¸&7f
+}
 void Kled_Set(int status,u8 Nled)
 {
 	u8 val;
-	val = Display_Code[0];
+	val = Display_Code[1];
 	if(status==ON)
-		Display_Code[0] = setbit(val,Nled);//¸ßµçÆ½µ¼Í¨
+		Display_Code[1] = setbit(val,Nled);//¸ßµçÆ½µ¼Í¨
 	else if(status==OFF)
-		Display_Code[0] = clrbit(val,Nled);	
+		Display_Code[1] = clrbit(val,Nled);	
 	else if(ON_ALL == status)	
-		Display_Code[0] = 0xff;
+		Display_Code[1] = 0xff;
 	else if(OFF_ALL == status)
-		Display_Code[0] = 0x00;
+		Display_Code[1] = 0x00;
 	else if(OFF_ON == status)
-		Display_Code[0] = reversebit(val,Nled);//·­×ª
+		Display_Code[1] = reversebit(val,Nled);//·­×ª
 }
-void Gpio_ValRead(void)	
+void KeyScan(void)
 {	
-	static unsigned char Su8KeyLock1; //1 ºÅ°´¼üµÄ×ÔËø
+	static unsigned char Su8KeyLock1;
+	static unsigned int  Su16KeyCnt1;
+	static unsigned char Su8KeyLock2;
+	static unsigned int  Su16KeyCnt2; 	
+	static unsigned char Su8KeyLock3;
+	static unsigned int  Su16KeyCnt3; 
+	static unsigned char Su8KeyLock4;
+	static unsigned int  Su16KeyCnt4; 
+	static unsigned char Su8KeyLock5;
+	static unsigned int  Su16KeyCnt5;
 
-	if(GPIO_CHECK_PIN==1)
+	if(Key_EventProtect)
+		return;
+    //¡¾Æô¶¯¡¿°´¼üK1µÄÉ¨ÃèÊ¶±ð
+	if(0!=KEY1_GPIO)
 	{
-		Su8KeyLock1=0; //°´¼ü½âËø
-		vGu8TimeFlag_2=0;
-		vGu16TimeCnt_2=0;
-		flash_flag = TRUE;
-		Kled_Set(OFF,CAR_LED);//Æû³µÍ£Ö¹
+		Su8KeyLock1=0;
+		Su16KeyCnt1=0;   
 	}
 	else if(0==Su8KeyLock1)
 	{
-		vGu8TimeFlag_2=1;//Æô¶¯¶¨Ê±Æ÷2
-		if(vGu16TimeCnt_2>=GPIO_FILTER_TIME) //ÂË²¨µÄ¡° ÎÈ¶¨Ê±¼ä¡± GPIO_FILTER_TIME£¬ ³¤¶ÈÊÇ 50ms¡£
+		Su16KeyCnt1++;
+		if(Su16KeyCnt1>=KEY_FILTER_TIME)
 		{
-			vGu8TimeFlag_2=0;//ÂË²¨Ê±¼äµ½£¬¶¨Ê±Æ÷Çë0
-			Su8KeyLock1=1; //°´¼üµÄ×ÔËø,±ÜÃâÒ»Ö±´¥·¢
-			Kled_Set(ON,CAR_LED);//Æû³µÍ£Ö¹
-			key_led_on(TRUE);//°´¼üÌáÊ¾led
-			flash_flag = FALSE;
-		}		
+			Su8KeyLock1=1;  
+			vGu8KeySec=1;    //´¥·¢1ºÅ¼ü
+			Key_EventProtect = TRUE;
+		}
 	}
-}	
-void Traffic_Led(void)
-{
-	switch(Gu8Step)
+   //¡¾Í£Ö¹¡¿°´¼üK2µÄÉ¨ÃèÊ¶±ð
+	if(0!=KEY2_GPIO)
 	{
-		case 0:
-			vGu8TimeFlag_1 = 1;
-			Kled_Set(ON,GREEN_LED);//ÂÌµÆÁÁ
-			Kled_Set(OFF,RED_LED);//ºìµÆÃð
-			vGu8LeveCheckFlag = 0;//¹Ø±ÕµçÆ½¼ì²â
-			r_count = R_LED_TIME;
-			LED8[0] = ~t_display[mod(g_count,10)];
-			LED8[1] = ~t_display[rem(g_count,10)];
-			if(vGu32TimeCnt_1>=LED_TIME_1S)
-			{
-				g_count--;
-				vGu32TimeCnt_1 = 0;
-				if(g_count == 0)
-					Gu8Step++;
-			}	
+		Su8KeyLock2=0;
+		Su16KeyCnt2=0; 
+	}
+	else if(0==Su8KeyLock2)
+	{
+		Su16KeyCnt2++;
+		if(Su16KeyCnt2>=KEY_FILTER_TIME)
+		{
+			Su8KeyLock2=1;  
+			vGu8KeySec=2;    //´¥·¢2ºÅ¼ü
+			Key_EventProtect = TRUE;
+		}
+	}
+   //¡¾Ä£Ê½+¡¿°´¼üK3µÄÉ¨ÃèÊ¶±ð
+	if(0!=KEY3_GPIO)
+	{
+		Su8KeyLock3=0;
+		Su16KeyCnt3=0; 	
+	}
+	else if(0==Su8KeyLock3)
+	{
+		Su16KeyCnt3++;
+		if(Su16KeyCnt3>=KEY_FILTER_TIME)
+		{
+			Su8KeyLock3=1;  
+			vGu8KeySec=3;    //´¥·¢3ºÅ¼ü
+			Key_EventProtect = TRUE;
+		}
+	}
+   //¡¾Ä£Ê½-¡¿°´¼üK4µÄÉ¨ÃèÊ¶±ð
+	if(0!=KEY4_GPIO)
+	{
+		Su8KeyLock4=0;
+		Su16KeyCnt4=0; 	
+	}
+	else if(0==Su8KeyLock4)
+	{
+		Su16KeyCnt4++;
+		if(Su16KeyCnt4>=KEY_FILTER_TIME)
+		{
+			Su8KeyLock4=1;  
+			vGu8KeySec=4;    //´¥·¢4ºÅ¼ü
+			Key_EventProtect = TRUE;
+		}
+	}
+   //¡¾Ä£Ê½-¡¿°´¼üK4µÄÉ¨ÃèÊ¶±ð
+	if(0!=KEY5_GPIO)
+	{
+		Su8KeyLock5=0;
+		Su16KeyCnt5=0; 	
+	}
+	else if(0==Su8KeyLock5)
+	{
+		Su16KeyCnt5++;
+		if(Su16KeyCnt5>=KEY_FILTER_TIME)
+		{
+			Su8KeyLock5=1;  
+			vGu8KeySec=5;    //´¥·¢5ºÅ¼ü
+			Key_EventProtect = TRUE;
+		}
+	}	
+}	
+void KeyTask(void)
+{
+	//print_char(vGu8KeySec);
+	if(0==vGu8KeySec)
+	{
+		return; //°´¼üµÄ´¥·¢ÐòºÅÊÇ0ÒâÎ¶×ÅÎÞ°´¼ü´¥·¢£¬²»Ö´ÐÐ´Ëº¯ÊýÏÂÃæµÄ´úÂë
+	}
+	switch(vGu8KeySec) //¸ù¾Ý²»Í¬µÄ°´¼ü´¥·¢ÐòºÅÖ´ÐÐ¶ÔÓ¦µÄ´úÂë
+	{
+		case 1:     //°´¼üK1
+			BitX_Set(OFF_ON,4);//¡¾¼ÌµçÆ÷1¡¿È¡·´;
+			vGu8KeySec=0; 
 			break;
-		case 1:
-			g_count = G_LED_TIME;
-			Kled_Set(OFF,GREEN_LED);//ÂÌµÆÃð
-			Kled_Set(ON,YELLOW_LED);//»ÆµÆÁÁ
-			LED8[0] = ~t_display[mod(y_count,10)];
-			LED8[1] = ~t_display[rem(y_count,10)];	
-			vGu8LeveCheckFlag = 1;//Æô¶¯µçÆ½¼ì²â
-			if(vGu32TimeCnt_1>=LED_TIME_1S)
-			{
-				y_count--;	
-				vGu32TimeCnt_1 = 0;
-				if(y_count == 0)
-					Gu8Step++;
-			}
+		case 2:     //°´¼üK2
+			BitX_Set(OFF_ON,5);//¡¾¼ÌµçÆ÷2¡¿È¡·´;
+			vGu8KeySec=0;  
 			break;
-		case 2:
-			y_count = Y_LED_TIME;
-			Kled_Set(OFF,GREEN_LED);//ÂÌµÆÃð
-			Kled_Set(OFF,YELLOW_LED);//»ÆµÆÃð
-			Kled_Set(ON,RED_LED);//ºìµÆÁÁ
-			LED8[0] = ~t_display[mod(r_count,10)];
-			LED8[1] = ~t_display[rem(r_count,10)];	
-			if(vGu32TimeCnt_1>=LED_TIME_1S)
-			{
-				r_count--;		
-				vGu32TimeCnt_1 = 0;
-				if(r_count == 0)
-				{
-					Gu8Step=0;		
-					vGu32TimeCnt_1 = 0;
-					vGu8TimeFlag_1 = 0;
-				}
-			}
-			break;	
-		default:	
+		case 3:     //°´¼üK3
+			BitX_Set(OFF_ON,6);//¡¾¼ÌµçÆ÷3¡¿È¡·´;
+			vGu8KeySec=0;  
+			break;
+		case 4:     //°´¼üK4
+			vGu8KeySec=0; 
+			BitX_Set(OFF_ON,7);//¡¾LED×´Ì¬¡¿È¡·´;
+			EEPROM_read_n(IAP_ADDRESS,tmp,E2PROM_LENGTH);
+			break;
+		case 5:     //°´¼üK5
+			vGu8KeySec=0; 
+			update_flag = TRUE;
+			break;
+		default:     
+			 
 			break;
 	}
-}
 
+	Key_EventProtect = FALSE;
+}	
 //========================================================================
 // º¯Êý: void main(void)
 // ÃèÊö: Ö÷³ÌÐò.
@@ -495,47 +499,19 @@ void main(void)
 		if(B_1ms)	//1msµ½
 		{
 			B_1ms = 0;	
-		//	Traffic_Led();//Ö¸Ê¾µÆ×´Ì¬ÇÐ»»		
-			//if(vGu8LeveCheckFlag)
-		//		Gpio_ValRead();//µÍµçÆ½¼ì²â
-		//	else
-		//	{
-		//		vGu8TimeFlag_2=0;//²»¼ì²â£¬¶¨Ê±Æ÷Çë0
-		//		Kled_Set(OFF,CAR_LED);//Æû³µÔËÐÐ
-	//		}
+			KeyTask();    //°´¼üµÄÈÎÎñº¯Êý
+			TaskProcess();//ÊýÂë¹ÜÅÜÂíºÍledÉÁË¸
+			TaskDisplayScan();
+			if(update_flag)//ÐèÒªÐ´Èë²ÎÊýµ½EEPROM
+			{
+				EEPROM_SectorErase(IAP_ADDRESS);
+				delay_ms(5);
+				EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
+				update_flag = FALSE;
+				delay_ms(5);
+			}
 		}
-		//TaskDisplayScan();
-		//TaskProcess();//ÏÔÊ¾ºÍÉÁË¸led
-/*
-    IapEraseSector(IAP_ADDRESS);    //????
-		delay_ms(250);
-    for (i=0; i<512; i++)           //????????(?FF??)
-    {
-        if (IapReadByte(IAP_ADDRESS+i) != 0xff)
-            goto Error;             //????,???
-    }
-		print_char(1);
-    delay_ms(250);                      //??
-    for (i=0; i<512; i++)           //??512??
-    {
-        IapProgramByte(IAP_ADDRESS+i, (BYTE)i);
-    }
-    delay_ms(250); 
-		print_char(2);
-*/
-    for (i=0; i<10; i++)           //??512??
-    {
-			print_char(i);
-        if (IapReadByte(IAP_ADDRESS+i) != (BYTE)i)
-            goto Error;             //
-    }
-			P54 = 0;
-		while(1);
-
 	}
-Error:
-			P54 = 1;
-			while (1);
 }
 
 //========================================================================
@@ -544,14 +520,8 @@ Error:
 void timer0 (void) interrupt TIMER0_VECTOR
 {
 	B_1ms = 1;		//1ms±êÖ¾
+	KeyScan();
 	TaskRemarks();
-	if(vGu8TimeFlag_1){
-		vGu32TimeCnt_1++;
-	}
-	else
-		vGu32TimeCnt_1 = 0;
-	if(vGu8TimeFlag_2)
-		vGu16TimeCnt_2++;
 }
 //========================================================================
 // º¯Êý: void print_string(u8 *puts)

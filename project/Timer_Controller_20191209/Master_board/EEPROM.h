@@ -35,11 +35,18 @@
 //#define ENABLE_IAP 0x86           //if SYSCLK<2MHz
 //#define ENABLE_IAP 0x87           //if SYSCLK<1MHz
 
+#if 0
 void Delay(BYTE n);
 void IapIdle();
 BYTE IapReadByte(WORD addr);
 void IapProgramByte(WORD addr, BYTE dat);
 void IapEraseSector(WORD addr);
+#else
 
+void	DisableEEPROM(void);
+void 	EEPROM_read_n(u16 EE_address,u8 *DataAddress,u16 number);
+void 	EEPROM_write_n(u16 EE_address,u8 *DataAddress,u16 number);
+void	EEPROM_SectorErase(u16 EE_address);
+#endif
 
 #endif
