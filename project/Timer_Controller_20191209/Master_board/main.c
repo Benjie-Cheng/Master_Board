@@ -54,40 +54,57 @@ volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 /*************	本地变量声明	**************/
 /********************** 公用量 ************************/
 BOOL B_1ms;	 //1ms标志
-u16	msecond; //1s计数
-u8 cnt50ms;  //50ms计数
-u8 cnt10ms;  //10ms计数
 BOOL B_TX1_Busy;  //发送忙标志
 
 
 //“软件定时器 1” 的相关变量
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile u32 vGu32TimeCnt_1=0;	
-static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
+volatile unsigned char vGu8TimeFlag_2=0;
+volatile u32 vGu32TimeCnt_2=0;
+	
+static u8 Gu8Step = 0;   //软件定时器 1 的 switch 切换步骤
+static u8 Run_Mode = DUAL_MINU_MODE;  //运行模式 switch 切换步骤，掉电需要记录到EEPROM中
+static u8 EraseStep = 0; //扇区擦除步骤
 
-#define     E2PROM_LENGTH 2
-static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x10,0x11};//data0：通时间，data1：关时间
-static u8	tmp[E2PROM_LENGTH] = {0x01,0x01};
 
-BOOL flash_flag = TRUE;//闪烁灯允许运行标志
-BOOL update_flag = FALSE;//EEPROM 更新标?
-BOOL dot_flag = TRUE;//闪烁灯允许运行标志
-BOOL display_eeprom = TRUE;//显示EEPROM 时间
+#define     SET_TIME_MAX 20  //最大值
+#define     E2PROM_LENGTH 3
+static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00};//data0：通时间，data1：关时间.data2：运行模式
+
+BOOL led_flash_flag = TRUE;//闪烁灯允许运行标志
+BOOL e2prom_update_flag = FALSE;//e2prom 更新标志
+BOOL dot_flag = TRUE;//数码管点闪烁灯允许运行标志
+BOOL e2prom_display = TRUE;//显示EEPROM 时间
 BOOL Key_EventProtect = FALSE;
+
+static u16  Delay_Time = 0;       //用于双秒，双分切换的中间变量
+static u8   on_time = 0,off_time = 0;//运行时间
+static u8   on_time_set = 0,off_time_set = 0;//需要写入EEPROM中的时间
+enum Gu8Step{
+	TURN_ON_MODE=0,
+	TURN_OFF_MODE,
+	IDLE_MODE,
+};
+enum Run_Mode{
+	DUAL_MINU_MODE=0,
+	ONLY_MINU_MODE,
+	DUAL_SEC_MODE,
+};
 
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
 
-#define LED_TIME_1S  1000  //时间是 10000ms
-#define LED_TIME_60S 60000 //时间是 60000ms
-#define LED_TIME_65S 65000 //时间是 65000ms
-#define LED_TIME_95S 95000 //时间是 95000ms
+#define KEY_TIME_1S  1000  //时间是 10000ms
+#define KEY_TIME_2S  1000  //时间是 10000ms
+#define KEY_TIME_025S 250  //0.25秒钟的时间需要的定时中断次数
+#define KEY_TIME_60S 60000 //时间是 60000ms
+
 
 #define	INDEX_MAX 4	//显示位索引
 static u8 	Display_Code[2]={0x00,0x00};		//数码管段码和位码，继电器和led状态。
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
 static u8	display_index = 0;						//显示位索引	
-static u8   on_time = 0,off_time = 0;
-static u8   on_time_set = 0,off_time_set = 0;
+
 #define Buf_Max 20
 u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
 u8 RX_CONT = 0; 
@@ -115,6 +132,7 @@ void KeyTask(void);
 void TaskDisplayScan(void);
 void vTaskfFlashLed(void);
 void TaskLedRunScan(void);
+void vEepromUpdate(void);
 void Date_Transform(u8 num1,u8 num2);
 	
 typedef struct _TASK_COMPONENTS
@@ -127,8 +145,8 @@ typedef struct _TASK_COMPONENTS
 static TASK_COMPONENTS TaskComps[] =
 {
 	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
-	{0, 100, 100, TaskLedRunScan},         		// 跑马灯	
-//	{0, 50, 50, vKey_Service}					// 按键服务程序50ms
+	{0, 100, 100, TaskLedRunScan},         		// 跑马灯
+	{0, 50, 50, vEepromUpdate}					// e2prom写操作，50ms
 //	{0, 10, 10, TaskRTC}				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus}
 	// 这里添加你的任务
@@ -136,7 +154,8 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // 运行LED
-	TAST_LED_RUN,        	//跑马灯
+	TAST_LED_RUN,          //跑马灯
+	TAST_E2PROM_RUN        //E2PROM 运行
 //	TASK_KEY_SERV,
 //	TASK_RTC,
 //	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
@@ -280,7 +299,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	_nop_();
 	BitX_Set(OFF,display_index);//改变亮度
 #endif	
-		if(display_eeprom)
+		if(e2prom_display)
 			Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
 		else 
 			Date_Transform(on_time,off_time);
@@ -293,7 +312,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 }
 void vTaskfFlashLed(void)
 { 
-	if(flash_flag)
+	if(led_flash_flag)
 		key_led_reverse();
 	puts_to_SerialPort(E2PROM_Strings);
 	
@@ -304,18 +323,17 @@ void TaskLedRunScan(void)
 	
 	LED_RUN_STEP++;
 	dot_flag = ~dot_flag;
+	LED8[0] = ~t_display[16];
+	LED8[1] = ~t_display[16];
 	switch(LED_RUN_STEP)
 	{
 	case 1:
-		//LED8[3] = ~0x01;
-		//LED8[2] = ~0x00;
-		//LED8[3] = LED8[3] & 0x7f;
+		LED8[3] = ~0x01;
+		LED8[2] = ~0x00;
 		break;
 	case 2:
-		//LED8[3] = LED8[3] | 0x80;
-		//LED8[3] = ~0x02;
-		//LED8[2] = ~0x00;
-		LED_RUN_STEP = 0;
+		LED8[3] = ~0x02;
+		LED8[2] = ~0x00;
 		break;
 	case 3:
 		LED8[3] = ~0x04;
@@ -344,21 +362,59 @@ void TaskLedRunScan(void)
 		break;
 	}
 }
+void vEepromUpdate(void)
+{
+	if(!e2prom_update_flag)//更新标志为假不更新
+		return;
+	switch(EraseStep) //分解写读扇区步骤
+	{
+		case 0:
+			vGu8TimeFlag_2 = 1;
+			if(vGu32TimeCnt_2>=KEY_TIME_2S)//松开按键2s后开始写入EEPROM
+			{
+				vGu8TimeFlag_2 = 0;
+				vGu32TimeCnt_2 = 0;
+				EraseStep++;
+			}
+			break;
+		case 1: 	
+			EEPROM_SectorEraseEEPROM_SectorErase(IAP_ADDRESS);
+			EraseStep++;
+			break;
+		case 2: 
+			EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);	
+			EraseStep++;
+		break;
+		case 3: 	
+			EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
+			on_time = E2PROM_Strings[0];
+			off_time = E2PROM_Strings[1];
+			Run_Mode = E2PROM_Strings[2];
+			EraseStep = 0;
+			e2prom_update_flag = FALSE;
+		break;
+}
+
 void Date_Transform(u8 num1,u8 num2)
 {	
+	if(Gu8Step==IDLE_MODE)//停止状态让其跑马灯，不做数据显示
+		return ;
 	LED8[0] = ~t_display[mod(num1,10)];
 	LED8[1] = ~t_display[rem(num1,10)];
 	LED8[2] = ~t_display[mod(num2,10)];	
 	LED8[3] = ~t_display[rem(num2,10)];
+	
 	if(dot_flag){
-		if(Gu8Step==0)
+		if(Gu8Step==TURN_ON_MODE)
 			LED8[1] &=0x7f;
 		else
 			LED8[3] &=0x7f;
 	}
-		
-	
-	//if(),如果按键按下，可以让小数点闪烁&7f
+	if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式关闭关断显示
+	{
+		LED8[2] = ~t_display[16];	
+		LED8[3] = ~t_display[16];
+	}
 }
 void Kled_Set(int status,u8 Nled)
 {
@@ -379,8 +435,10 @@ void KeyScan(void)
 {	
 	static unsigned char Su8KeyLock1;
 	static unsigned int  Su16KeyCnt1;
+	static unsigned int  uiKeyCtntyCnt1;
 	static unsigned char Su8KeyLock2;
-	static unsigned int  Su16KeyCnt2; 	
+	static unsigned int  Su16KeyCnt2;
+	static unsigned int  uiKeyCtntyCnt2; 	
 	static unsigned char Su8KeyLock3;
 	static unsigned int  Su16KeyCnt3; 
 	static unsigned char Su8KeyLock4;
@@ -394,7 +452,8 @@ void KeyScan(void)
 	if(0!=KEY1_GPIO)
 	{
 		Su8KeyLock1=0;
-		Su16KeyCnt1=0;   
+		Su16KeyCnt1=0; 
+		uiKeyCtntyCnt1=0; //连续累加的时间间隔延时计数器清零		
 	}
 	else if(0==Su8KeyLock1)
 	{
@@ -402,15 +461,30 @@ void KeyScan(void)
 		if(Su16KeyCnt1>=KEY_FILTER_TIME)
 		{
 			Su8KeyLock1=1;  
+			Su16KeyCnt1=0;
 			vGu8KeySec=1;    //触发1号键
-			Key_EventProtect = TRUE;
+			Key_EventProtect = FALSE;//不需要按键保护
 		}
+	}
+	else if(Su16KeyCnt1 < KEY_TIME_1S)//如果小于1s,继续+
+	{
+		Su16KeyCnt1++;
+	}
+	else//按住累加到1秒后仍然不放手，这个时候进入有节奏的连续触发
+	{
+		uiKeyCtntyCnt1++; //连续触发延时计数器累加
+		 if(uiKeyCtntyCnt1>KEY_TIME_025S)  //按住没松手，每0.25秒就触发一次
+		 {
+			uiKeyCtntyCnt1=0; 
+			vGu8KeySec=1;    //触发1号键
+		 }
 	}
    //【停止】按键K2的扫描识别
 	if(0!=KEY2_GPIO)
 	{
 		Su8KeyLock2=0;
 		Su16KeyCnt2=0; 
+		uiKeyCtntyCnt2=0; //连续累加的时间间隔延时计数器清零
 	}
 	else if(0==Su8KeyLock2)
 	{
@@ -419,8 +493,21 @@ void KeyScan(void)
 		{
 			Su8KeyLock2=1;  
 			vGu8KeySec=2;    //触发2号键
-			Key_EventProtect = TRUE;
+			Key_EventProtect = FALSE;
 		}
+	}
+	else if(Su16KeyCnt2 < KEY_TIME_1S)//如果小于1s,继续+
+	{
+		Su16KeyCnt2++;
+	}
+	else//按住累加到1秒后仍然不放手，这个时候进入有节奏的连续触发
+	{
+		uiKeyCtntyCnt2++; //连续触发延时计数器累加
+		 if(uiKeyCtntyCnt2>KEY_TIME_025S)  //按住没松手，每0.25秒就触发一次
+		 {
+			uiKeyCtntyCnt2=0; 
+			vGu8KeySec=2;    //触发2号键
+		 }
 	}
    //【模式+】按键K3的扫描识别
 	if(0!=KEY3_GPIO)
@@ -480,74 +567,105 @@ void KeyTask(void)
 	}
 	switch(vGu8KeySec) //根据不同的按键触发序号执行对应的代码
 	{
-		case 1:     //按键K1
+		case 1:     //按键K1【关断时间设置】
+			vGu8KeySec=0;	
+			if(++off_time_set>SET_TIME_MAX)
+				off_time_set = 0;
+			e2prom_update_flag = TRUE;
+			break;
+		case 2:     //按键K2【开启时间设置】
 			vGu8KeySec=0;
-					
-			if(++off_time_set>20)
-				off_time_set =0;
-			update_flag = TRUE;
+			if(++on_time_set>SET_TIME_MAX)
+				on_time_set = 0;  
+			e2prom_update_flag = TRUE;
 			break;
-		case 2:     //按键K2
-			
-			if(++on_time_set>20)
-				on_time_set =0;
-			vGu8KeySec=0;  
-			update_flag = TRUE;
-			break;
-		case 3:     //按键K3
+		case 3:     //按键K3【模式设置】
+			vGu8KeySec=0; 
 			BitX_Set(OFF_ON,6);//【继电器3】取反;	
-			vGu8KeySec=0;  
+			if(++Run_Mode>DUAL_SEC_MODE)
+				Run_Mode = DUAL_MINU_MODE;
+			if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式关断时间为0;
+				off_time_set = 0;
+			e2prom_update_flag = TRUE;
 			break;
 		case 4:     //按键K4
 			vGu8KeySec=0; 
 			BitX_Set(OFF_ON,5);//【继电器2】取反;
 			BitX_Set(OFF_ON,7);//【LED状态】取反;
-			//EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 			break;
-		case 5:     //按键K5
-			
+		case 5:     //按键K5【显示模式】
 			vGu8KeySec=0; 
-			display_eeprom = ~display_eeprom;
+			e2prom_display = ~e2prom_display;
 			break;
 		default:     
 			 
 			break;
 	}
+	if(e2prom_update_flag)
+	{
+		EraseStep = 0;
+		vGu8TimeFlag_1 = 0;//eprom需要操作时，不执行倒计时
+		vGu8TimeFlag_2 = 0;
+		Gu8Step = TURN_ON_MODE;//从新运行
+	}
 	E2PROM_Strings[0] = on_time_set;
 	E2PROM_Strings[1] = off_time_set;
+	E2PROM_Strings[2] = Run_Mode;
 	Key_EventProtect = FALSE;
 }	
 void Channle_Sw(void)
 {
+	switch(Run_Mode)
+	{
+		case DUAL_MINU_MODE:
+			Delay_Time = KEY_TIME_60S;//双分
+			break;
+		case ONLY_MINU_MODE:
+			Delay_Time = KEY_TIME_60S;//单分
+			break;
+		case DUAL_SEC_MODE:
+			Delay_Time = KEY_TIME_1S;//双秒
+			break;
+		default:	
+			break;
+	}
 	switch(Gu8Step)
 	{
-		case 0:
+		case TURN_ON_MODE://导通倒计时
 			vGu8TimeFlag_1 = 1;
-			
 			BitX_Set(ON,4);//【继电器1】开;
-			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
 				on_time--;
-				if(on_time==0){
+				if(on_time<=0){
 					Gu8Step++;
+					vGu8TimeFlag_1 = 0;
 					off_time = E2PROM_Strings[1];//赋值EEPROM值
+					if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式则，时间到关闭运行。
+						Gu8Step = IDLE_MODE;
 				}
 			}	
 			break;
-		case 1:
-			
+		case TURN_OFF_MODE://关断倒计时
+			vGu8TimeFlag_1 = 1;
 			BitX_Set(OFF,4);//【继电器1】开;
-			if(vGu32TimeCnt_1>=LED_TIME_1S)
+			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
 				off_time--;
 				if(off_time <= 0){
-					Gu8Step = 0;
+					Gu8Step = TURN_ON_MODE;
+					vGu8TimeFlag_1 = 0;
 					on_time = E2PROM_Strings[0];//赋值EEPROM值
 				}
 			}
 			break;
+		case IDLE_MODE://单分关断模式状态
+			//on_time = E2PROM_Strings[0];//赋值EEPROM，开启时间
+				
+			break;
+			
 		default:	
 			break;
 	}
@@ -562,13 +680,14 @@ void Channle_Sw(void)
 void main(void)
 {
 	stc15x_hw_init();
-	vDataIn595(0x7f);
+	vDataIn595(0x00);
 	vDataIn595(0x00);
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am Traffic Lights!\n");
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 	on_time_set = on_time = E2PROM_Strings[0];
 	off_time_set = off_time = E2PROM_Strings[1];
+	Run_Mode = E2PROM_Strings[2];
 	while(1)
 	{
 		if(B_1ms)	//1ms到
@@ -576,16 +695,7 @@ void main(void)
 			B_1ms = 0;	
 			Channle_Sw();
 			KeyTask();    //按键的任务函数
-			TaskProcess();//数码管跑马和led闪烁
-			if(update_flag)//需要写入参数到EEPROM
-			{
-				EEPROM_SectorErase(IAP_ADDRESS);
-				//delay_ms(1);
-				EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
-				update_flag = FALSE;
-				//delay_ms(1);
-				EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
-			}
+			TaskProcess();//1：led 2：数码管闪烁 3、e2prom读写
 		}
 		TaskDisplayScan();
 	}
@@ -604,6 +714,11 @@ void timer0 (void) interrupt TIMER0_VECTOR
 	}
 	else
 		vGu32TimeCnt_1 = 0;
+	if(vGu8TimeFlag_2){
+		vGu32TimeCnt_2++;
+	}
+	else
+		vGu32TimeCnt_2 = 0;
 }
 //========================================================================
 // 函数: void print_string(u8 *puts)
