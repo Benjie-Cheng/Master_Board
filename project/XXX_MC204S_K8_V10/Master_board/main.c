@@ -6,25 +6,28 @@
 /* --- mail:  1017649596@qq.com ---------------------------------------*/
 /* 如果要在程序中使用此代码,请在程序中注明使用了版权 ---------------   */
 /*---------------------------------------------------------------------*/
-/*************	本程序功能说明	**************
-8K8R:8个key控制8个Relay，具体功能见spec
+/*************	XXX_MC204S_K8_V10	**************
+XXX_0008:该控制板主要用于小项目开发，具体功能见spec
 
-用STC的MCU的IO方式矩阵键盘交互和串口收发数据。
-1、8*8 矩阵键暂时只调试并用了一行。
-2、按键板有按键触发时，串口发送K1-K8按键控制的led 状态给主机。主机暂时无反馈状态给从机（掉包时状态会错乱，但是从新按一次能恢复）。
-3、从机根据按键值，通过74HC595控制板上LED状态。
-4、有按键按下时有一颗公用的LED指示亮，松手灭，不按时正常1Hz闪烁。
+1、TM1650 驱动四位共阴极数码管，实现4*7 键盘扫描，预留级联口。
+2、595控制按键LED灯显示，预留有级联口。
+3、PT2272 遥控功能接口。
+4、BT05蓝牙uart接口。
+5、两个WS2811 接口。
+6、电源12V,5V，GND
+7、GPIO扩展预留。
 
 存在缺陷：
-1、8*8键盘的LED灯在按键右侧，每次按下均被手指遮挡，难以分辨继电器状态。改在右侧或者上侧。
-2、LED驱动都为高电平驱动，存在驱动能力不住，可采用外部上拉，低电平点亮方式
+1、
+2、
 
-v1.1：
-1、修改波特率115200->9600           20190929
-2、统一通信数据格式                 20190929
+v1.0：软件设定
+1、波特率115200 ，晶振35M          
+2、
 ******************************************/
 #include "config.h"
 #include "debug.h"
+#include "TM1650_I2C.h"
 #include "eeprom.h"
 
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 中断频率, 1000次/秒
@@ -118,11 +121,11 @@ u8 code t_display[]={						//共阴极标准字库，共阳取反
 
 
 /********************** A 给指示灯用的595 ************************/
-sbit	A_HC595_SER   = P1^1;	//pin 34	SER		data input
-sbit	A_HC595_RCLK  = P3^2;	//pin 37	RCLk	store (latch) clock
-sbit	A_HC595_SRCLK = P1^0;	//pin 35	SRCLK	Shift data clock
+sbit	A_HC595_SER   = P5^5;	//pin 55	SER		data input
+sbit	A_HC595_RCLK  = P1^5;	//pin 15	RCLk	store (latch) clock
+sbit	A_HC595_SRCLK = P5^4;	//pin 54	SRCLK	Shift data clock
 //sbit	A_HC595_OE    = P5^4;	//pin 54	OE 		低电平 使能enable pin
-//sbit	A_HC595_MR    = P3^6;	//pin 36	低电平复位	
+sbit	A_HC595_MR    = P3^2;	//pin 32	低电平复位
 
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
@@ -215,16 +218,16 @@ void stc15x_hw_init(void)
 	P2n_push_pull(0xff);	//设置为准双向口
 	P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
-	P5n_standard(0xff);	//设置为准双向口	
+	P5n_standard(0xff);	//设置为准双向口
+	A_HC595_MR = 0;     //先清零数据输出	
 	timer0_init();
 	uart1_config();
-	//A_HC595_MR = 1;//复位禁止
-	//A_HC595_OE = 0;//使能芯片
 	KEY1_GPIO = 1;//按键引脚，默认拉高电平
 	KEY2_GPIO = 1;//按键引脚，默认拉高电平
 	KEY3_GPIO = 1;//按键引脚，默认拉高电平
 	KEY4_GPIO = 1;//按键引脚，默认拉高电平
 	KEY5_GPIO = 1;//按键引脚，默认拉高电平
+	A_HC595_MR = 1;     //复位禁止
 }
 /**************** 向HC595发送一个字节函数 ******************/
 void vDataIn595(u8 dat)
@@ -684,24 +687,31 @@ void Channle_Sw(void)
 void main(void)
 {
 	stc15x_hw_init();
-	vDataIn595(0x00);
-	vDataIn595(0x00);
+	vDataIn595(0xff);
+	vDataIn595(0xff);
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am Traffic Lights!\n");
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 	on_time_set = on_time = E2PROM_Strings[0];
 	off_time_set = off_time = E2PROM_Strings[1];
-	Run_Mode = E2PROM_Strings[2];
+	Init_Tm1650();//数码管开显示
+	//TM1650_Set(0x48,0x51);
+	TM1650_Set(0x68,t_display[0]);
+	TM1650_Set(DIG2,t_display[1]);
+	TM1650_Set(DIG3,t_display[2]);
+	TM1650_Set(DIG4,t_display[40]);
 	while(1)
 	{
+		
+
 		if(B_1ms)	//1ms到
 		{
 			B_1ms = 0;	
-			Channle_Sw();
-			KeyTask();    //按键的任务函数
-			TaskProcess();//1：led 2：数码管闪烁 3、e2prom读写
+		//	Channle_Sw();
+		//	KeyTask();    //按键的任务函数
+		//	TaskProcess();//1：led 2：数码管闪烁 3、e2prom读写
 		}
-		TaskDisplayScan();
+		//TaskDisplayScan();
 	}
 }
 
