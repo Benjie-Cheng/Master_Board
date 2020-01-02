@@ -69,10 +69,10 @@ volatile unsigned int vGu16TimeCnt_1=0;
 #define LED_TIME_60S 60000 //时间是 3000ms
 #define KEY8_VAL 0x17
 #define     E2PROM_LENGTH 8
-u16 T0,T2,T3;
-u16 U1_T1,U2_T1,U3_T1,U4_T1,U5_T1;			 //T0,  T2,  T3, U1_T1, U2_T1, U3_T1,  U4_T1,  U5_T1
+u16 T_0,T2,T3;
+u16 U1_T1,U2_T1,U3_T1,U4_T1,U5_T1;			 //T_0,  T2,  T3, U1_T1, U2_T1, U3_T1,  U4_T1,  U5_T1
 static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00,0x00,  0x00,   0x00,   0x00,   0x00};
-#define GET_INIT_VAL()	{T0=E2PROM_Strings[0]*1000;T2=E2PROM_Strings[1]*1000;T3=E2PROM_Strings[2]*1000;\
+#define GET_INIT_VAL()	{T_0=E2PROM_Strings[0]*1000;T2=E2PROM_Strings[1]*1000;T3=E2PROM_Strings[2]*1000;\
 U1_T1=E2PROM_Strings[3]*1000;U2_T1=E2PROM_Strings[4]*1000;U3_T1=E2PROM_Strings[5]*1000;U4_T1=E2PROM_Strings[6]*1000;U5_T1=E2PROM_Strings[7]*1000;}
 
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
@@ -607,7 +607,7 @@ void Key1_Fun(void)
 			Nmos_Set(1,3);
 			Nmos_Set(1,4);
 			Nmos_Set(1,5);//
-			if(vGu16TimeCnt_1>=T0) //T0时间到
+			if(vGu16TimeCnt_1>=T_0) //T_0时间到
 				Gu8Step++;
 			break;
 		case 1:
@@ -645,7 +645,7 @@ void Key2_Fun(void)
 			Nmos_Set(1,3);
 			Nmos_Set(1,4);
 			Nmos_Set(1,5);//
-			if(vGu16TimeCnt_1>=T0) //3s时间到
+			if(vGu16TimeCnt_1>=T_0) //3s时间到
 				Gu8Step++;
 			break;
 		case 1:
@@ -654,52 +654,52 @@ void Key2_Fun(void)
 			Nmos_Set(0,2);
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);//第1-5位灭
-			if(vGu16TimeCnt_1>=(U5_T1+T0)) //第五路关断时间截止
+			if(vGu16TimeCnt_1>=(U5_T1+T_0)) //第五路关断时间截止
 				Gu8Step++;
 			break;
 		case 2:
 			Nmos_Set(1,4);//第5位亮
-			if(vGu16TimeCnt_1>=(U5_T1+T0+T2)) //第五路导通时间截止
+			if(vGu16TimeCnt_1>=(U5_T1+T_0+T2)) //第五路导通时间截止
 				Gu8Step++;		
 			break;	
 		case 3:
 			Nmos_Set(0,4);//第5位灭
-			if(vGu16TimeCnt_1>=(U4_T1+T0)) //第5路关断时间截止
+			if(vGu16TimeCnt_1>=(U4_T1+T_0)) //第5路关断时间截止
 				Gu8Step++;
 			break;
 		case 4:
 			Nmos_Set(1,3);//第4位亮
-			if(vGu16TimeCnt_1>=(U4_T1+T0+T2)) //第4路导通时间截止
+			if(vGu16TimeCnt_1>=(U4_T1+T_0+T2)) //第4路导通时间截止
 				Gu8Step++;
 			break;
 		case 5:
 			Nmos_Set(0,3);//第4位灭
-			if(vGu16TimeCnt_1>=(U3_T1+T0)) //第3路关断时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0)) //第3路关断时间截止
 				Gu8Step++;
 			break;
 		case 6:
 			Nmos_Set(1,2);//第3位亮
-			if(vGu16TimeCnt_1>=(U3_T1+T0+T2)) //第3路导通时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0+T2)) //第3路导通时间截止
 				Gu8Step++;
 			break;
 		case 7:
 			Nmos_Set(0,2);//第3位灭
-			if(vGu16TimeCnt_1>=(U2_T1+T0)) //第2路关断时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0)) //第2路关断时间截止
 				Gu8Step++;
 			break;
 		case 8:
 			Nmos_Set(1,1);//第2位亮
-			if(vGu16TimeCnt_1>=(U2_T1+T0+T2)) //第2路导通时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0+T2)) //第2路导通时间截止
 				Gu8Step++;
 			break;
 		case 9:
 			Nmos_Set(0,1);//第2位灭
-			if(vGu16TimeCnt_1>=(U1_T1+T0)) //第1路关断时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0)) //第1路关断时间截止
 				Gu8Step++;
 			break;
 		case 10:
 			Nmos_Set(1,0);//第1位亮
-			if(vGu16TimeCnt_1>=(U1_T1+T0+T2)) //第1路导通时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0+T2)) //第1路导通时间截止
 				Gu8Step++;
 			break;
 		case 11:
@@ -732,7 +732,7 @@ void Key3_Fun(void)
 			Nmos_Set(1,3);
 			Nmos_Set(0,4);
 			Nmos_Set(1,5);//
-			if(vGu16TimeCnt_1>=T0) //T0时间到
+			if(vGu16TimeCnt_1>=T_0) //T_0时间到
 				Gu8Step++;
 			break;
 		case 1:
@@ -742,42 +742,42 @@ void Key3_Fun(void)
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);//第1-5位灭
 			
-			if(vGu16TimeCnt_1>=(U4_T1+T0)) //第4路关断时间截止
+			if(vGu16TimeCnt_1>=(U4_T1+T_0)) //第4路关断时间截止
 				Gu8Step++;
 			break;
 		case 2:
 			Nmos_Set(1,3);//第4位亮
-			if(vGu16TimeCnt_1>=(U4_T1+T0+T2)) //第4路导通时间截止
+			if(vGu16TimeCnt_1>=(U4_T1+T_0+T2)) //第4路导通时间截止
 				Gu8Step++;		
 			break;	
 		case 3:
 			Nmos_Set(0,3);//第4位灭
-			if(vGu16TimeCnt_1>=(U3_T1+T0)) //第3路关断时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0)) //第3路关断时间截止
 				Gu8Step++;
 			break;
 		case 4:
 			Nmos_Set(1,2);//第3位亮
-			if(vGu16TimeCnt_1>=(U3_T1+T0+T2)) //第3路导通时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0+T2)) //第3路导通时间截止
 				Gu8Step++;
 			break;
 		case 5:
 			Nmos_Set(0,2);//第3位灭
-			if(vGu16TimeCnt_1>=(U2_T1+T0)) //第2路关断时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0)) //第2路关断时间截止
 				Gu8Step++;
 			break;
 		case 6:
 			Nmos_Set(1,1);//第2位亮
-			if(vGu16TimeCnt_1>=(U2_T1+T0+T2)) //第2路导通时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0+T2)) //第2路导通时间截止
 				Gu8Step++;
 			break;
 		case 7:
 			Nmos_Set(0,1);//第2位灭
-			if(vGu16TimeCnt_1>=(U1_T1+T0)) //第1路关断时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0)) //第1路关断时间截止
 				Gu8Step++;
 			break;
 		case 8:
 			Nmos_Set(1,0);//第1位亮
-			if(vGu16TimeCnt_1>=(U1_T1+T0+T2)) //第1路导通时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0+T2)) //第1路导通时间截止
 				Gu8Step++;
 			break;
 		case 9:
@@ -813,7 +813,7 @@ void Key4_Fun(void)
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);
 			Nmos_Set(1,5);//
-			if(vGu16TimeCnt_1>=T0) //T0时间到
+			if(vGu16TimeCnt_1>=T_0) //T_0时间到
 				Gu8Step++;
 			break;
 		case 1:
@@ -822,32 +822,32 @@ void Key4_Fun(void)
 			Nmos_Set(0,2);
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);//第1-5位灭
-			if(vGu16TimeCnt_1>=(U3_T1+T0)) //第3路关断时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0)) //第3路关断时间截止
 				Gu8Step++;
 			break;
 		case 2:
 			Nmos_Set(1,2);//第3位亮
-			if(vGu16TimeCnt_1>=(U3_T1+T0+T2)) //第3路导通时间截止
+			if(vGu16TimeCnt_1>=(U3_T1+T_0+T2)) //第3路导通时间截止
 				Gu8Step++;		
 			break;	
 		case 3:
 			Nmos_Set(0,2);//第3位灭
-			if(vGu16TimeCnt_1>=(U2_T1+T0)) //第2路关断时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0)) //第2路关断时间截止
 				Gu8Step++;
 			break;
 		case 4:
 			Nmos_Set(1,1);//第2位亮
-			if(vGu16TimeCnt_1>=(U2_T1+T0+T2)) //第2路导通时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0+T2)) //第2路导通时间截止
 				Gu8Step++;
 			break;
 		case 5:
 			Nmos_Set(0,1);//第2位灭
-			if(vGu16TimeCnt_1>=(U1_T1+T0)) //第1路关断时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0)) //第1路关断时间截止
 				Gu8Step++;
 			break;
 		case 6:
 			Nmos_Set(1,0);//第2位亮
-			if(vGu16TimeCnt_1>=(U1_T1+T0+T2)) //第1路导通时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0+T2)) //第1路导通时间截止
 				Gu8Step++;
 			break;
 		case 7:
@@ -880,7 +880,7 @@ void Key5_Fun(void)
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);
 			Nmos_Set(1,5);//
-			if(vGu16TimeCnt_1>=T0) //T0时间到
+			if(vGu16TimeCnt_1>=T_0) //T_0时间到
 				Gu8Step++;
 			break;
 		case 1:
@@ -889,22 +889,22 @@ void Key5_Fun(void)
 			Nmos_Set(0,2);
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);//第1-5位灭
-			if(vGu16TimeCnt_1>=(U2_T1+T0)) //第2路关断时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0)) //第2路关断时间截止
 				Gu8Step++;
 			break;
 		case 2:
 			Nmos_Set(1,1);//第2位亮
-			if(vGu16TimeCnt_1>=(U2_T1+T0+T2)) //第2路导通时间截止
+			if(vGu16TimeCnt_1>=(U2_T1+T_0+T2)) //第2路导通时间截止
 				Gu8Step++;		
 			break;	
 		case 3:
 			Nmos_Set(0,1);//第2位灭
-			if(vGu16TimeCnt_1>=(U1_T1+T0)) //第1路关断时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0)) //第1路关断时间截止
 				Gu8Step++;
 			break;
 		case 4:
 			Nmos_Set(1,0);//第1位亮
-			if(vGu16TimeCnt_1>=(U1_T1+T0+T2)) //第1路导通时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0+T2)) //第1路导通时间截止
 				Gu8Step++;
 			break;
 		case 5:
@@ -946,12 +946,12 @@ void Key6_Fun(void)
 			Nmos_Set(0,2);
 			Nmos_Set(0,3);
 			Nmos_Set(0,4);//第1-5位灭
-			if(vGu16TimeCnt_1>=(U1_T1+T0)) //第1路关断时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0)) //第1路关断时间截止
 				Gu8Step++;
 			break;
 		case 2:
 			Nmos_Set(1,0);//第1位亮
-			if(vGu16TimeCnt_1>=(U1_T1+T0+T2)) //第1路导通时间截止
+			if(vGu16TimeCnt_1>=(U1_T1+T_0+T2)) //第1路导通时间截止
 				Gu8Step++;		
 			break;	
 		case 3:
