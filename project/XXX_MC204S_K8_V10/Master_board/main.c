@@ -121,7 +121,7 @@ u8 code t_display1[]={						//共阴极标准字库，共阳取反
 u8 code t_display2[]={						//共阴极标准字库，共阳取反
     //A    B    C    D    E    F   black -     H    J	 K	  L	   N	o   P	 U     t    G    Q    r   M    y
 	0x77,0x7C,0x39,0x5E,0x79,0x71,0x00,0x40,0x76,0x1E,0x70,0x38,0x37,0x5C,0x73,0x3E,0x78,0x3d,0x67,0x50,0x37,0x6e};
-
+u8 code KeyVal[] = {0xc4,0xcc,0xd4,0xdc,0xe4,0xec,0xf4,0xc5};
 /********************** A 给指示灯用的595 ************************/
 sbit	A_HC595_SER   = P5^5;	//pin 55	SER		data input
 sbit	A_HC595_RCLK  = P1^5;	//pin 15	RCLk	store (latch) clock
@@ -149,8 +149,8 @@ typedef struct _TASK_COMPONENTS
 } TASK_COMPONENTS;   
 static TASK_COMPONENTS TaskComps[] =
 {
-	{0, 1000,  1000, vTaskfFlashLed},           // 按键扫描1s
-//	{0, 100, 100, TaskLedRunScan},         		// 跑马灯
+	{0, 100,  100, vTaskfFlashLed},           // 按键扫描1s
+	{0, 100, 100, TaskLedRunScan},         		// 跑马灯
 	{0, 50, 50, vEepromUpdate},					// e2prom写操作，50ms
 //	{0, 10, 10, TaskRTC},				        // RTC倒计时
 //	{0, 30, 30, TaskDispStatus},
@@ -159,7 +159,7 @@ static TASK_COMPONENTS TaskComps[] =
 typedef enum _TASK_LIST
 {
 	TASK_FLASH_LED,        // 运行LED
-//	TAST_LED_RUN,          //跑马灯
+	TAST_LED_RUN,          //跑马灯
 	TAST_E2PROM_RUN,        //E2PROM 运行
 //	TASK_KEY_SERV,
 //	TASK_RTC,
@@ -282,7 +282,7 @@ void TaskProcess(void)
 void BitX_Set(int status,u8 Xbit)
 {
 	u8 val;
-	val = Display_Code[1]&0xf0;//低四位每次清零，用于数码管位扫描
+	val = Display_Code[1];//低四位每次清零，用于数码管位扫描
 	if(status==ON)
 		Display_Code[1] = setbit(val,Xbit);//高电平导通
 	else if(status==OFF)
@@ -318,10 +318,11 @@ void Date_Transform(u8 num1,u8 num2)
 }
 void TaskDisplayScan(void)//10ms 刷新一次
 { 
-	if(e2prom_display)
-		Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
-	else 
-		Date_Transform(on_time,off_time);
+	//if(e2prom_display)
+	//	Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
+	//else 
+		//Date_Transform(on_time,off_time);
+	Date_Transform(12,13);
 	TM1650_Set(DIG1,LED8[0]);
 	TM1650_Set(DIG2,LED8[1]);
 	TM1650_Set(DIG3,LED8[2]);
@@ -333,7 +334,7 @@ void vTaskfFlashLed(void)
 { 
 	if(led_flash_flag)
 		key_led_reverse();
-	print_char(key);//打印按键值
+	//print_char(vGu8KeySec);//打印按键值
 	//puts_to_SerialPort(E2PROM_Strings);
 	
 }
@@ -474,6 +475,12 @@ void KeyTask(void)
 			vGu8KeySec=0; 
 			e2prom_display = ~e2prom_display;
 			break;
+		case 6:     //按键K6【】
+			BitX_Set(OFF_ON,5);//【LED6】取反;
+			break;
+		case 7:     //按键K7【】
+			BitX_Set(OFF_ON,6);//【LED7】取反;
+			break;
 		default:     
 			 
 			break;
@@ -548,6 +555,36 @@ void Channle_Sw(void)
 			break;
 	}
 }
+int Get_KeyVal(void)
+{
+	u8 i = 0,val;
+	static unsigned char Su8KeyLock1;
+	static unsigned int  Su16KeyCnt1;
+	if(Key_EventProtect)
+		return 0;
+	for(i=0;i<8;i++)
+	{
+		if(Scan_Key()==KeyVal[i]) 
+		{
+			val = i+1;
+			break;
+		}
+		else 
+			val = 0;
+	}
+	if(val==0){
+		Su8KeyLock1 = 0;
+	}
+	else if(0==Su8KeyLock1)
+	{
+		Su8KeyLock1 = 1;
+		Key_EventProtect = TRUE;//需要按键保护
+	}
+	else
+		return 0;
+		
+	return val;
+}
 //========================================================================
 // 函数: void main(void)
 // 描述: 主程序.
@@ -561,10 +598,12 @@ void main(void)
 	stc15x_hw_init();
 	vDataIn595(0xff);
 	vDataOut595();	//开机默认关闭通道显示LED
+
 	puts_to_SerialPort("I am MC204S_K8!\n");
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 	on_time_set = on_time = E2PROM_Strings[0];
 	off_time_set = off_time = E2PROM_Strings[1];
+
 	Init_Tm1650();//数码管开显示
 	TM1650_Set(DIG1,t_display[0]);
 	TM1650_Set(DIG2,t_display[1]);
@@ -575,7 +614,9 @@ void main(void)
 		if(B_1ms)	//1ms到
 		{
 			B_1ms = 0;	
-			key = Scan_Key();//1650读取键值
+			//key = Scan_Key();//1650读取键值
+			vGu8KeySec = Get_KeyVal();//获取按键值
+			//print_char(vGu8KeySec);//打印按键值
 			Channle_Sw();
 			KeyTask();    //按键的任务函数
 			TaskProcess();//1：led 2：数码管闪烁 3、e2prom读写
@@ -590,7 +631,7 @@ void main(void)
 void timer0 (void) interrupt TIMER0_VECTOR
 {
 	B_1ms = 1;		//1ms标志
-	KeyScan();
+	//KeyScan();
 	TaskRemarks();
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;

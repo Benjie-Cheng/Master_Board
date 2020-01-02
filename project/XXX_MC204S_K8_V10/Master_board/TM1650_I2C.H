@@ -13,7 +13,9 @@ P14为SDA口
  
 #define SCL_TM1650	P33
 #define SDA_TM1650	P14
-#define IIC_uS  5 
+//#define SCL_TM1650	P54
+//#define SDA_TM1650	P55
+#define IIC_uS  1 
 #define CMD_OFF 0x00 //关闭显示
 #define CMD_ON  0x01 //开显示
 #define CMD_MODE     0x48 //模式命令
@@ -22,6 +24,15 @@ P14为SDA口
 #define DIG2 0x6A
 #define DIG3 0x6C
 #define DIG4 0x6E
+
+	#define S1        1
+	#define S2        2
+	#define S3        3
+	#define S4        4
+	#define S5        5
+	#define S6        6
+	#define S7        7
+	#define S8        8
 
 #define BL(x)     (x)*16     //亮度等级1~8
 #define P7_MODE    0x00
@@ -40,7 +51,7 @@ void I2C_Stop_TM1650(void);
 void IIC_Ack_TM1650(void);
 void IIC_WrByte_TM1650(u8 txd);
  
-//u8 Scan_Key(void);
+u8 Scan_Key(void);
 void TM1650_Set(u8 add,u8 dat);
 void Init_Tm1650(void);
 void Tube_CMD(u8 mode, u8 Brightness);
