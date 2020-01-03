@@ -42,6 +42,11 @@ v1.0：软件设定
 	#define S3        3
 	#define S4        4
 	#define S5        5
+	#define DUAL_MINU_LED  2
+	#define DUAL_SEC_LED   4
+	#define ONLY_MINU_LED  3
+	#define ONLY_SET_LED   1
+	#define ONLY_RUN_LED   0
 
 volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 
@@ -63,6 +68,7 @@ enum Run_Mode{
 	DUAL_SEC_MODE,
 };
 
+
 //“软件定时器 1” 的相关变量
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile u32 vGu32TimeCnt_1=0;	
@@ -74,7 +80,7 @@ static u8 Run_Mode = DUAL_MINU_MODE;  //运行模式 switch 切换步骤，掉电需要记录到
 static u8 EraseStep = 0; //扇区擦除步骤
 static u8 Brightness = 8;
 
-#define     SET_TIME_MAX 20  //最大值
+#define     SET_TIME_MAX 99  //最大值
 #define     BLMAX 8//背光最大
 #define     BLMIM 1//背光最小
 #define     E2PROM_LENGTH 3
@@ -94,11 +100,11 @@ static u8   on_time_set = 0,off_time_set = 0;//需要写入EEPROM中的时间
 
 #define KEY_TIME_1S  1000  //时间是 10000ms
 #define KEY_TIME_2S  500  //时间是 10000ms
-#define KEY_TIME_025S 250  //0.25秒钟的时间需要的定时中断次数
+#define KEY_TIME_025S 80  //0.25秒钟的时间需要的定时中断次数
 #define KEY_TIME_60S 60000 //时间是 60000ms
 
 
-static u8 	Display_Code[2]={0x00,0x00};		    //595，光耦和led状态，低电平点亮。
+static u8 	Display_Code[2]={0xff,0xff};		    //595，光耦和led状态，低电平点亮。
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
 
 #define Buf_Max 20
@@ -113,7 +119,7 @@ u8 code t_display1[]={						//共阴极标准字库，共阳取反
 u8 code t_display2[]={						//共阴极标准字库，共阳取反
     //A    B    C    D    E    F   black -     H    J	 K	  L	   N	o   P	 U     t    G    Q    r   M    y
 	0x77,0x7C,0x39,0x5E,0x79,0x71,0x00,0x40,0x76,0x1E,0x70,0x38,0x37,0x5C,0x73,0x3E,0x78,0x3d,0x67,0x50,0x37,0x6e};
-u8 code KeyVal[] = {S1,S2,S3,S4,S5};
+u8 code KeyVal[] = {0xDF,0xD7,0xC7,0xCF};
 u8 code pt2272[] = {
 //   1     2    3    4    5    6    7    8   9    10   11   12   13   14   15
 	0x01,0x02,0x04,0x0a,0x0b,0x06,0x07,0x0c,0x09,0x03,0x0e,0x0d,0x0f,0x08,0x05	
@@ -129,7 +135,7 @@ sbit	A_HC595_MR    = P1^5;	//pin 32	低电平复位
 #define PT2272_D1      P10
 #define PT2272_D2      P37
 #define PT2272_D3      P36
-#define PT2272_DATA    (PT2272_D0 + PT2272_D1*2 + PT2272_D2*4 + PT2272_D3*8)
+//#define PT2272_DATA    (PT2272_D0 + PT2272_D1*2)// + PT2272_D2*4 + PT2272_D3*8)
 
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
@@ -337,14 +343,19 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	TM1650_Set(DIG2,LED8[1]);
 	TM1650_Set(DIG3,LED8[2]);
 	TM1650_Set(DIG4,LED8[3]);
-	vDataIn595(Display_Code[0]);//输出光耦控制
-	vDataIn595(Display_Code[1]);//输出LED控制
+	vDataIn595(Display_Code[1]);//输出光耦控制
+	vDataIn595(Display_Code[0]);//输出LED控制
 	vDataOut595();				//锁存输出数据
 }
 void vTaskfFlashLed(void)
 { 
+	if(!e2prom_display)
+	{
+		LedX_Set(OFF,ONLY_RUN_LED);//【LED2】取反;	
+		return;
+	}	
 	if(led_flash_flag)
-		LedX_Set(OFF_ON,4);//【LED5】运行指示灯;
+		LedX_Set(OFF_ON,ONLY_RUN_LED);//【LED2】取反;	
 		//key_led_reverse();
 	//print_char(vGu8KeySec);//打印按键值
 	//puts_to_SerialPort(E2PROM_Strings);
@@ -459,20 +470,19 @@ void KeyTask(void)
 	{
 		case S2:     //按键K2【关断时间设置】
 			vGu8KeySec=0;
-			LedX_Set(OFF_ON,1);//【LED2】取反;	
+			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;	
 			if(++off_time_set>SET_TIME_MAX)
 				off_time_set = 1;
 			e2prom_update_flag = TRUE;
 			break;
 		case S1:     //按键K1【开启时间设置】
-			LedX_Set(OFF_ON,0);//【LED1】取反;
+			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;
 			vGu8KeySec=0;
 			if(++on_time_set>SET_TIME_MAX)
 				on_time_set = 1;  
 			e2prom_update_flag = TRUE;
 			break;
 		case S3:     //按键K3【模式设置】
-			LedX_Set(OFF_ON,2);//【LED3】取反;
 			vGu8KeySec=0; 
 			if(++Run_Mode>DUAL_SEC_MODE)
 				Run_Mode = DUAL_MINU_MODE;
@@ -480,18 +490,18 @@ void KeyTask(void)
 				off_time_set = 1;
 			e2prom_update_flag = TRUE;
 			break;
+
 		case S5:     //按键K4
-			LedX_Set(OFF_ON,4);//【LED5】取反;
+			//LedX_Set(OFF_ON,4);//【LED5】取反;
 			if(--Brightness<BLMIM)
 				Brightness = 8; 
 			Tube_CMD(P7_MODE,Brightness);
 		
-			
 			vGu8KeySec=0; 
 			break;
 		case S4:     //按键K5【显示模式】
-			LedX_Set(OFF_ON,3);//【LED4】取反;
 			vGu8KeySec=0; 
+			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;	
 			e2prom_display = ~e2prom_display;
 			break;
 		default:     
@@ -518,12 +528,21 @@ void Channle_Sw(void)
 	{
 		case DUAL_MINU_MODE:
 			Delay_Time = KEY_TIME_60S;//双分
+			LedX_Set(ON,DUAL_MINU_LED); //【LED5】双分灯亮;
+			LedX_Set(OFF,DUAL_SEC_LED); //【LED5】取反;
+			LedX_Set(OFF,ONLY_MINU_LED);//【LED5】取反;
 			break;
 		case ONLY_MINU_MODE:
 			Delay_Time = KEY_TIME_60S;//单分
+			LedX_Set(ON,ONLY_MINU_LED); //【LED5】取反;
+			LedX_Set(OFF,DUAL_MINU_LED);//【LED5】取反;
+			LedX_Set(OFF,DUAL_SEC_LED); //【LED5】取反;
 			break;
 		case DUAL_SEC_MODE:
 			Delay_Time = KEY_TIME_1S;//双秒
+			LedX_Set(ON,DUAL_SEC_LED);  //【LED5】取反;
+			LedX_Set(OFF,DUAL_MINU_LED);//【LED5】取反;
+			LedX_Set(OFF,ONLY_MINU_LED);//【LED5】取反;
 			break;
 		default:	
 			break;
@@ -532,7 +551,7 @@ void Channle_Sw(void)
 	{
 		case TURN_ON_MODE://导通倒计时
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(ON,7);//【LED8】开;
+			BitX_Set(ON_ALL,7);//【LED8】开;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -548,7 +567,7 @@ void Channle_Sw(void)
 			break;
 		case TURN_OFF_MODE://关断倒计时
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(OFF,7);//【LED8】关;
+			BitX_Set(OFF_ALL,7);//【LED8】开;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -561,7 +580,7 @@ void Channle_Sw(void)
 			}
 			break;
 		case IDLE_MODE://单分关断模式状态
-			//on_time = E2PROM_Strings[0];//赋值EEPROM，开启时间
+			BitX_Set(OFF_ALL,7);//【LED8】开;
 			vGu8TimeFlag_1 = 0;	
 			break;
 			
@@ -572,9 +591,15 @@ void Channle_Sw(void)
 int Get_Pt2272State(void)
 {
 	u8 i = 0,val;
+	u8 m,j,k,l;
+	m = PT2272_D0;
+	j = PT2272_D1*2;
+	k = PT2272_D2*4;
+	l = PT2272_D3*8;
 	for(i=0;i<15;i++)
 	{
-		if(PT2272_DATA==pt2272[i]) 
+		val = m+j+k+l;
+		if(val == pt2272[i]) 
 		{
 			val = i+1;
 			break;
@@ -592,7 +617,7 @@ int Get_KeyVal(void)
 	static unsigned int  uiKeyCtntyCnt1;
 	static unsigned char Su8KeyLock2;
 	static unsigned int  Su16KeyCnt2;
-	
+	//print_char(Scan_Key());
 	if(Key_EventProtect)
 		return 0;
 	if(!Get_Pt2272State())//如果为0则未触发
@@ -626,6 +651,8 @@ int Get_KeyVal(void)
 		else 
 			val = 0;
 	}
+	
+	//print_char(val);//打印按键值
 	if(val==0){
 		Su8KeyLock1=0;
 		Su16KeyCnt1=0; 
@@ -639,8 +666,9 @@ int Get_KeyVal(void)
 			Key_EventProtect = FALSE;//不需要按键保护
 		else
 			Key_EventProtect = TRUE;//需要按键保护
+		return val;
 	}
-	else if(val!=S1 || val!=S2)
+	else if(val!=S1 && val!=S2)
 	{
 		return 0;
 	}
@@ -656,7 +684,8 @@ int Get_KeyVal(void)
 			uiKeyCtntyCnt1=0; 
 			return val;
 		 }
-	}				
+	}		
+	return 0;	
 }
 //========================================================================
 // 函数: void main(void)
@@ -676,13 +705,14 @@ void main(void)
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 	on_time_set = on_time = E2PROM_Strings[0];
 	off_time_set = off_time = E2PROM_Strings[1];
-
+	Run_Mode = E2PROM_Strings[2];
+	
 	Init_Tm1650();//数码管开显示
 	TM1650_Set(DIG1,t_display[0]);
 	TM1650_Set(DIG2,t_display[1]);
 	TM1650_Set(DIG3,t_display[2]);
 	TM1650_Set(DIG4,t_display[3]);
-	
+
 	while(1)
 	{
 		if(B_1ms)	//1ms到

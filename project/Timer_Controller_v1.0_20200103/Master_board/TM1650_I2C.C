@@ -126,10 +126,10 @@ u8 Scan_Key(void)	  //按键扫描
 	I2C_Start_TM1650();
 	IIC_WrByte_TM1650(CMD_KEY_MODE);//读按键命令
 	IIC_Ack_TM1650();
-	SDA_TM1650 = 1;
-	TDelay_us(IIC_uS);
-	TDelay_us(IIC_uS);
-	SCL_TM1650=0;
+//	SDA_TM1650 = 1;
+//	TDelay_us(IIC_uS);
+//	TDelay_us(IIC_uS);
+//	SCL_TM1650=0;
 	for(i=0;i<8;i++)
 	{
 	   SCL_TM1650=1;
@@ -140,7 +140,6 @@ u8 Scan_Key(void)	  //按键扫描
 	   } 
 		TDelay_us(IIC_uS);
 		SCL_TM1650=0;
-		TDelay_us(IIC_uS);
 	}
 	IIC_Ack_TM1650();
 	I2C_Stop_TM1650();
