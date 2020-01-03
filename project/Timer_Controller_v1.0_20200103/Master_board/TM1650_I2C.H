@@ -25,7 +25,7 @@ P55为SDA口
 
 
 
-#define BL(x)     (x)*16     //亮度等级1~8
+#define BL(x)     (x)*16     //亮度等级1~7，0亮度最大
 #define P7_MODE    0x00
 #define P8_MODE    0x08
  
