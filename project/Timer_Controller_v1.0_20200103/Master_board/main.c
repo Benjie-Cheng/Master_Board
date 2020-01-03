@@ -492,12 +492,12 @@ void KeyTask(void)
 			break;
 
 		case S5:     //按键K4
-			//LedX_Set(OFF_ON,4);//【LED5】取反;
+			//LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;
+			vGu8KeySec=0; 
 			if(--Brightness<BLMIM)
 				Brightness = 8; 
-			Tube_CMD(P7_MODE,Brightness);
-		
-			vGu8KeySec=0; 
+			//Tube_CMD(P7_MODE,Brightness);
+			
 			break;
 		case S4:     //按键K5【显示模式】
 			vGu8KeySec=0; 
@@ -611,19 +611,22 @@ int Get_Pt2272State(void)
 }
 int Get_KeyVal(void)
 {
-	u8 i = 0,val;
+	u8 i = 0,val,Key_Code;
 	static unsigned char Su8KeyLock1;
 	static unsigned int  Su16KeyCnt1;
 	static unsigned int  uiKeyCtntyCnt1;
 	static unsigned char Su8KeyLock2;
 	static unsigned int  Su16KeyCnt2;
-	//print_char(Scan_Key());
+	static unsigned int  uiKeyCtntyCnt2;
+	
 	if(Key_EventProtect)
 		return 0;
-	if(!Get_Pt2272State())//如果为0则未触发
+	Key_Code = Get_Pt2272State();
+	if(!Key_Code)//如果为0则未触发
 	{ 
 		Su8KeyLock2=0;
 		Su16KeyCnt2=0;
+		uiKeyCtntyCnt2=0;
 	}
 	else if(0==Su8KeyLock2)
 	{
@@ -631,14 +634,33 @@ int Get_KeyVal(void)
 		if(Su16KeyCnt2>=KEY_FILTER_TIME)
 		{
 			
-			Su8KeyLock2=1; 		
-			Key_EventProtect = TRUE;
-			return (Get_Pt2272State());
+			Su8KeyLock2=1;
+			Su16KeyCnt2=0;	
+			if(Key_Code == S1 || Key_Code == S2)
+				Key_EventProtect = FALSE;//不需要按键保护
+			else
+				Key_EventProtect = TRUE;//需要按键保护
+			return (Key_Code);
 		}
 	}
-	else if(Su8KeyLock2)//如果连续按下，不再触发
+	else if(Su8KeyLock2)//如果连续按下
 	{
-		return 0;
+		if(Key_Code!=S1 && Key_Code!=S2)//不是S1,S2不再触发
+			return 0;
+		else
+		{	
+			if(Su16KeyCnt2 < KEY_TIME_1S)
+				 Su16KeyCnt2++;
+			else//按住累加到1秒后仍然不放手，这个时候进入有节奏的连续触发
+			{
+				uiKeyCtntyCnt2++; //连续触发延时计数器累加
+				if(uiKeyCtntyCnt2>KEY_TIME_025S)  //按住没松手，每0.25秒就触发一次
+				{
+					uiKeyCtntyCnt2=0; 
+					return Key_Code;
+				}
+			}
+		}
 	}
 
 	for(i=0;i<8;i++)
@@ -652,7 +674,6 @@ int Get_KeyVal(void)
 			val = 0;
 	}
 	
-	//print_char(val);//打印按键值
 	if(val==0){
 		Su8KeyLock1=0;
 		Su16KeyCnt1=0; 
