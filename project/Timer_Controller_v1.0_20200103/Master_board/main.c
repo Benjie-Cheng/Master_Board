@@ -137,6 +137,8 @@ sbit	A_HC595_MR    = P1^5;	//pin 32	低电平复位
 #define PT2272_D3      P36
 //#define PT2272_DATA    (PT2272_D0 + PT2272_D1*2)// + PT2272_D2*4 + PT2272_D3*8)
 
+void vDataIn595(u8 dat);
+void vDataOut595(void);
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
@@ -228,7 +230,7 @@ void stc15x_hw_init(void)
 	P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口
-	A_HC595_MR = 0;     //先清零数据输出	
+	A_HC595_MR = 1;     //先清零数据输出
 	timer0_init();
 	uart1_config();
 	A_HC595_MR = 1;     //复位禁止
@@ -247,7 +249,7 @@ void vDataIn595(u8 dat)
 	}
 }
 /**************** HC595数据锁存函数 ******************/
-void vDataOut595()
+void vDataOut595(void)
 {		
 	A_HC595_RCLK = 0;
 	NOP2();
@@ -315,7 +317,10 @@ void LedX_Set(int status,u8 Xbit)
 void Date_Transform(u8 num1,u8 num2)
 {	
 	if(Gu8Step==IDLE_MODE)//停止状态让其跑马灯，不做数据显示
+	{
+		LedX_Set(OFF_ALL,7);//【LED2】取反;
 		return ;
+	}
 	LED8[0] = t_display[mod(num1,10)];
 	LED8[1] = t_display[rem(num1,10)];
 	LED8[2] = t_display[mod(num2,10)];	
@@ -343,8 +348,8 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	TM1650_Set(DIG2,LED8[1]);
 	TM1650_Set(DIG3,LED8[2]);
 	TM1650_Set(DIG4,LED8[3]);
-	vDataIn595(Display_Code[1]);//输出光耦控制
-	vDataIn595(Display_Code[0]);//输出LED控制
+	vDataIn595(Display_Code[1]);//输出LED控制
+	vDataIn595(Display_Code[0]);//输出光耦控制
 	vDataOut595();				//锁存输出数据
 }
 void vTaskfFlashLed(void)
@@ -470,14 +475,22 @@ void KeyTask(void)
 	{
 		case S2:     //按键K2【关断时间设置】
 			vGu8KeySec=0;
+			if(!e2prom_display||Run_Mode == ONLY_MINU_MODE)//单分和运行模式不设置关断时间
+			{
+				break;
+			}
 			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;	
 			if(++off_time_set>SET_TIME_MAX)
 				off_time_set = 1;
 			e2prom_update_flag = TRUE;
 			break;
 		case S1:     //按键K1【开启时间设置】
-			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;
 			vGu8KeySec=0;
+			if(!e2prom_display)//运行模式不设置时间
+			{
+				break;
+			}
+			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;
 			if(++on_time_set>SET_TIME_MAX)
 				on_time_set = 1;  
 			e2prom_update_flag = TRUE;
@@ -551,7 +564,8 @@ void Channle_Sw(void)
 	{
 		case TURN_ON_MODE://导通倒计时
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(ON_ALL,7);//【LED8】开;
+			BitX_Set(ON,6);//【LED8】开;
+			BitX_Set(OFF,7);//【LED8】关;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -567,7 +581,8 @@ void Channle_Sw(void)
 			break;
 		case TURN_OFF_MODE://关断倒计时
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(OFF_ALL,7);//【LED8】开;
+			BitX_Set(ON,7);//【LED8】开;
+			BitX_Set(OFF,6);//【LED8】关;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -717,7 +732,6 @@ int Get_KeyVal(void)
 //========================================================================
 void main(void)
 {
-
 	stc15x_hw_init();
 	vDataIn595(0xff);
 	vDataIn595(0xff);
