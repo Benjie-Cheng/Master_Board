@@ -22,7 +22,13 @@ void Tube_CMD(u8 mode, u8 Brightness)
 		dispaly_mode = P7_MODE;
     if(Brightness)
     {
-        TM1650_Set(CMD_MODE, BL(Brightness) | dispaly_mode | CMD_ON);//开启显示
+		if(Brightness >=8)
+		{
+			Brightness = 8;
+			TM1650_Set(CMD_MODE, BL(0) | dispaly_mode | CMD_ON);//开启显示，最亮显示
+		}
+		else
+			TM1650_Set(CMD_MODE, BL(Brightness) | dispaly_mode | CMD_ON);//开启显示
     }
     else
     {
@@ -114,12 +120,16 @@ void IIC_WrByte_TM1650(u8 txd)//写一个字节高位在前，低位在后
 }
 u8 Scan_Key(void)	  //按键扫描
 {
+	//SCL 下降沿输出数据，SCL =1时读取数据，SCL=0是输出。
 	u8 i;
 	u8 rekey = 0;
 	I2C_Start_TM1650();
 	IIC_WrByte_TM1650(CMD_KEY_MODE);//读按键命令
 	IIC_Ack_TM1650();
-	//SDA_TM1650 = 1;
+//	SDA_TM1650 = 1;
+//	TDelay_us(IIC_uS);
+//	TDelay_us(IIC_uS);
+//	SCL_TM1650=0;
 	for(i=0;i<8;i++)
 	{
 	   SCL_TM1650=1;
@@ -131,7 +141,6 @@ u8 Scan_Key(void)	  //按键扫描
 		TDelay_us(IIC_uS);
 		SCL_TM1650=0;
 	}
-	
 	IIC_Ack_TM1650();
 	I2C_Stop_TM1650();
 	return(rekey);
