@@ -7,15 +7,13 @@
  
 /**********************************
 TM1650芯片控制数码管
-P32为SCL口
-P14为SDA口
+P54为SCL口
+P55为SDA口
 **********************************/
  
 #define SCL_TM1650	P33
 #define SDA_TM1650	P14
-//#define SCL_TM1650	P54
-//#define SDA_TM1650	P55
-#define IIC_uS  1 
+#define IIC_uS  1
 #define CMD_OFF 0x00 //关闭显示
 #define CMD_ON  0x01 //开显示
 #define CMD_MODE     0x48 //模式命令
@@ -25,16 +23,9 @@ P14为SDA口
 #define DIG3 0x6C
 #define DIG4 0x6E
 
-	#define S1        1
-	#define S2        2
-	#define S3        3
-	#define S4        4
-	#define S5        5
-	#define S6        6
-	#define S7        7
-	#define S8        8
 
-#define BL(x)     (x)*16     //亮度等级1~8
+
+#define BL(x)     (x)*16     //亮度等级1~7，0亮度最大
 #define P7_MODE    0x00
 #define P8_MODE    0x08
  

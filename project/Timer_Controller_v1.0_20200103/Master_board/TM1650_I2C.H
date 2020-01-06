@@ -13,7 +13,7 @@ P55为SDA口
  
 #define SCL_TM1650	P54
 #define SDA_TM1650	P55
-#define IIC_uS  1 
+#define IIC_uS  1
 #define CMD_OFF 0x00 //关闭显示
 #define CMD_ON  0x01 //开显示
 #define CMD_MODE     0x48 //模式命令
