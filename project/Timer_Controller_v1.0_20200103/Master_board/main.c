@@ -83,8 +83,14 @@ static u8 Brightness = 8;
 #define     SET_TIME_MAX 99  //最大值
 #define     BLMAX 8//背光最大
 #define     BLMIM 1//背光最小
-#define     E2PROM_LENGTH 3
-static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00};//data0：通时间，data1：关时间.data2：运行模式
+#define     E2PROM_LENGTH 4
+static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00,0x01};
+/*
+data0：通时间
+data1：关时间
+data2：运行模式
+data3:支持PT2272
+*/
 
 BOOL led_flash_flag = TRUE;//闪烁灯允许运行标志
 BOOL e2prom_update_flag = FALSE;//e2prom 更新标志
@@ -95,6 +101,7 @@ BOOL Key_EventProtect = FALSE;
 static u16  Delay_Time = 0;          //用于双秒，双分切换的中间变量
 static u8   on_time = 0,off_time = 0;//运行时间
 static u8   on_time_set = 0,off_time_set = 0;//需要写入EEPROM中的时间
+static u8   Support_Pt2272 = 0;
 
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
 
@@ -566,6 +573,8 @@ void Channle_Sw(void)
 			vGu8TimeFlag_1 = 1;
 			BitX_Set(ON,6);//【LED8】开;
 			BitX_Set(OFF,7);//【LED8】关;
+			BitX_Set(ON,0);//【LED8】开;
+			BitX_Set(OFF,1);//【LED8】关;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -583,6 +592,8 @@ void Channle_Sw(void)
 			vGu8TimeFlag_1 = 1;
 			BitX_Set(ON,7);//【LED8】开;
 			BitX_Set(OFF,6);//【LED8】关;
+			BitX_Set(ON,1);//【LED8】开;
+			BitX_Set(OFF,0);//【LED8】关;
 			if(vGu32TimeCnt_1>=Delay_Time)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -636,6 +647,8 @@ int Get_KeyVal(void)
 	
 	if(Key_EventProtect)
 		return 0;
+if( Support_Pt2272){
+	
 	Key_Code = Get_Pt2272State();
 	if(!Key_Code)//如果为0则未触发
 	{ 
@@ -677,7 +690,7 @@ int Get_KeyVal(void)
 			}
 		}
 	}
-
+}
 	for(i=0;i<8;i++)
 	{
 		if(Scan_Key()==KeyVal[i]) 
@@ -741,6 +754,7 @@ void main(void)
 	on_time_set = on_time = E2PROM_Strings[0];
 	off_time_set = off_time = E2PROM_Strings[1];
 	Run_Mode = E2PROM_Strings[2];
+	Support_Pt2272 = E2PROM_Strings[3];
 	
 	Init_Tm1650();//数码管开显示
 	TM1650_Set(DIG1,t_display[0]);
