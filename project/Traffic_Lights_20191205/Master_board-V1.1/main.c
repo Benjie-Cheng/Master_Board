@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------*/
-/* --- Fuctin: Multi-control system -----------------------------------*/
+/* --- Fuctin: Mini traffic lights- -----------------------------------*/
 /* --- Author: ronghe.cheng -------------------------------------------*/
 /* --- version: V1.0 Copyright (2019) by chengronghe ------------------*/
 /* --- Mobile: (86)15901856750 ----------------------------------------*/
@@ -20,7 +20,7 @@
 #include "config.h"
 #include "debug.h"
 
-#define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 中断频率, 1000次/秒
+#define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))	//Timer 0 中断频率, 1000次/秒
 #define	Baudrate1	115200UL                            //通信波特率115200
 
 
@@ -35,10 +35,10 @@ sbit	LED8_E = P1^3;
 sbit	LED8_F = P1^2;
 sbit	LED8_G = P1^6;
 sbit	LED8_DP = P1^7;
-*********/
+*******/
 sbit	P_COM0 = P3^6;
 sbit	P_COM1 = P3^7;
-sbit	P_COM3 = P1^7;
+//sbit	P_COM3 = P1^7;
 
 sbit	LED_L1 = P3^3;
 sbit	LED_L2 = P5^5;
@@ -81,23 +81,22 @@ volatile unsigned char vGu8TimeFlag_2=0;
 volatile unsigned int vGu16TimeCnt_2=0;	
 volatile unsigned char vGu8LeveCheckFlag=0;
 
-#define RIGHT_LED_TIME 14
+#define GPIO_FILTER_TIME 50 //滤波的“ 稳定时间” 50ms
+#define LED_TIME_1S  1000  //时间是 10000ms
+/*-----------------自定义时间区域---------------------*/
+#define RIGHT_LED_TIME 15
 #define FRONT_LED_TIME 25
 #define LEFT_LED_TIME 35	
+#define LOW_TIMES 5
+/*----------------------------------------------------*/
 volatile unsigned int g_count = FRONT_LED_TIME;
 volatile unsigned int y_count = RIGHT_LED_TIME;
 volatile unsigned int r_count = LEFT_LED_TIME;
 BOOL flash_flag = FALSE;
 BOOL low_time = FALSE;
 
-#define GPIO_FILTER_TIME 50 //滤波的“ 稳定时间” 50ms
-
-#define LED_TIME_1S  1000  //时间是 10000ms
-#define LED_TIME_60S 60000 //时间是 60000ms
-#define LED_TIME_65S 65000 //时间是 65000ms
-#define LED_TIME_95S 95000 //时间是 95000ms
-
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
+
 #define	INDEX_MAX 2	//显示位索引
 static u8 	Display_Code[2]={0x00,0x00};		//1：com;2、LED状态
 static u8 	LED8[2] = {0x00,0x00};		//显示缓冲支持2位,十位、个位
@@ -281,9 +280,9 @@ void TaskDisplayScan(void)//10ms 刷新一次
 		LED_L1 = getbit(Display_Code[1],LEDL_RED);
 		LED_L2 = getbit(Display_Code[1],LEDL_GREEN);
 		LED_R1 = getbit(Display_Code[1],LEDR_RED);
-    LED_R2 = getbit(Display_Code[1],LEDR_GREEN);
+		LED_R2 = getbit(Display_Code[1],LEDR_GREEN);
 		LED_G1 = getbit(Display_Code[1],LEDG_RED);
-    LED_G2 = getbit(Display_Code[1],LEDG_GREEN);
+		LED_G2 = getbit(Display_Code[1],LEDG_GREEN);
 	}
 }
 void vTaskfFlashLed(void)
@@ -349,7 +348,7 @@ void TaskLedRunScan(void)
 		break;
 	}
 }
-void Kled_Set(int status,u8 Nled)
+void Kled_Set(int status,u8 Nled)//LED设置
 {
 	u8 val;
 	val = Display_Code[1];
@@ -429,7 +428,7 @@ void Traffic_Led(void)
 			r_count = LEFT_LED_TIME;
 			LED8[0] = t_display[mod(g_count,10)];
 			LED8[1] = t_display[rem(g_count,10)];
-			if(g_count<=5)
+			if(g_count<=LOW_TIMES)
 				low_time = TRUE;
 			else
 				low_time = FALSE;
@@ -447,7 +446,7 @@ void Traffic_Led(void)
 			LED8[0] = t_display[mod(y_count,10)];
 			LED8[1] = t_display[rem(y_count,10)];	
 			vGu8LeveCheckFlag = 1;//启动电平检测
-			if(y_count<=5)
+			if(y_count<=LOW_TIMES)
 				low_time = TRUE;
 			else
 				low_time = FALSE;
@@ -464,7 +463,7 @@ void Traffic_Led(void)
 			Turn_Direction(Gu8Step);
 			LED8[0] = t_display[mod(r_count,10)];
 			LED8[1] = t_display[rem(r_count,10)];	
-			if(r_count<=5)
+			if(r_count<=LOW_TIMES)
 				low_time = TRUE;
 			else
 				low_time = FALSE;
@@ -576,8 +575,8 @@ void puts_to_SerialPort(u8 *puts)
 void uart1_config()
 {
 	/*********** 波特率使用定时器2 *****************/
-		AUXR |= 0x01;		//S1 BRT Use Timer2;
-		set_timer2_baudraye(65536UL - (MAIN_Fosc / 4) / Baudrate1);
+	AUXR |= 0x01;		//S1 BRT Use Timer2;
+	set_timer2_baudraye(65536UL - (MAIN_Fosc / 4) / Baudrate1);
 
 	SCON = (SCON & 0x3f) | 0x40;	//UART1模式, 0x00: 同步移位输出, 0x40: 8位数据,可变波特率, 0x80: 9位数据,固定波特率, 0xc0: 9位数据,可变波特率
 	S1_USE_P30P31();//UART1 使用P30 P31口	默认
