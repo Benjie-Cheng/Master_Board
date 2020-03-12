@@ -24,8 +24,8 @@ v1.0：软件设定
 ******************************************/
 #include "config.h"
 #include "debug.h"
-#include "TM1650_I2C.h"
 #include "eeprom.h"
+#include "TM1650_I2C.h"
 
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 中断频率, 1000次/秒
 #define	Baudrate1	115200UL                                //通信波特率115200
@@ -75,8 +75,10 @@ volatile u32 vGu32TimeCnt_1=0;
 volatile unsigned char vGu8TimeFlag_2=0;
 volatile u32 vGu32TimeCnt_2=0;
 	
-static u8 Gu8Step = 0;   //软件定时器 1 的 switch 切换步骤
-static u8 Run_Mode = DUAL_MINU_MODE;  //运行模式 switch 切换步骤，掉电需要记录到EEPROM中
+typedef struct{
+	static u8 Step = 0;   //软件定时器 1 的 switch 切换步骤	
+	static u8 Mode = DUAL_MINU_MODE;  //运行模式 switch 切换步骤，掉电需要记录到EEPROM中	
+}SysRun;
 static u8 EraseStep = 0; //扇区擦除步骤
 static u8 Brightness = 8;
 
@@ -98,9 +100,15 @@ BOOL dot_flag = TRUE;//数码管点闪烁灯允许运行标志
 BOOL e2prom_display = TRUE;//显示EEPROM 时间
 BOOL Key_EventProtect = FALSE;
 
-static u16  Delay_Time = 0;          //用于双秒，双分切换的中间变量
-static u8   on_time = 0,off_time = 0;//运行时间
-static u8   on_time_set = 0,off_time_set = 0;//需要写入EEPROM中的时间
+typedef struct{
+	static u8 on = 0;
+	static u8 off = 0;		
+}SetTime;//设置通断的时间结构体，需要写入EEPROM中的时间
+typedef struct{
+	static u8 on = 0;
+	static u8 off = 0;
+	static u16 tMode = 0;//用于双秒，双分切换的中间变量	
+}RunTime;//运行时间结构体
 static u8   Support_Pt2272 = 0;
 
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
@@ -323,7 +331,7 @@ void LedX_Set(int status,u8 Xbit)
 }
 void Date_Transform(u8 num1,u8 num2)
 {	
-	if(Gu8Step==IDLE_MODE)//停止状态让其跑马灯，不做数据显示
+	if(SysRun.Step==IDLE_MODE)//停止状态让其跑马灯，不做数据显示
 	{
 		LedX_Set(OFF_ALL,7);//【LED2】取反;
 		return ;
@@ -334,12 +342,12 @@ void Date_Transform(u8 num1,u8 num2)
 	LED8[3] = t_display[rem(num2,10)];
 	
 	if(dot_flag && (e2prom_display == FALSE)){//运行状态，闪烁小数点
-		if(Gu8Step==TURN_ON_MODE)
+		if(SysRun.Step==TURN_ON_MODE)
 			LED8[1] = t_display1[rem(num1,10)];
 		else
 			LED8[3] = t_display1[rem(num2,10)];
 	}
-	if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式关闭关断显示
+	if(SysRun.Mode == ONLY_MINU_MODE)//如果是单分模式关闭关断显示
 	{
 		LED8[2] = t_display2[6];	
 		LED8[3] = t_display2[6];
@@ -350,7 +358,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	if(e2prom_display)
 		Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
 	else 
-		Date_Transform(on_time,off_time);
+		Date_Transform(RunTime.on,RunTime.off);
 	TM1650_Set(DIG1,LED8[0]);
 	TM1650_Set(DIG2,LED8[1]);
 	TM1650_Set(DIG3,LED8[2]);
@@ -445,9 +453,9 @@ void vEepromUpdate(void)
 		break;
 		case 3: 	
 			EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
-			on_time = E2PROM_Strings[0];
-			off_time = E2PROM_Strings[1];
-			Run_Mode = E2PROM_Strings[2];
+			RunTime.on = E2PROM_Strings[0];
+			RunTime.off = E2PROM_Strings[1];
+			SysRun.Mode = E2PROM_Strings[2];
 			EraseStep = 0;
 			e2prom_update_flag = FALSE;
 			break;
@@ -482,13 +490,13 @@ void KeyTask(void)
 	{
 		case S2:     //按键K2【关断时间设置】
 			vGu8KeySec=0;
-			if(!e2prom_display||Run_Mode == ONLY_MINU_MODE)//单分和运行模式不设置关断时间
+			if(!e2prom_display||SysRun.Mode == ONLY_MINU_MODE)//单分和运行模式不设置关断时间
 			{
 				break;
 			}
 			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;	
-			if(++off_time_set>SET_TIME_MAX)
-				off_time_set = 1;
+			if(++SetTime.off>SET_TIME_MAX)
+				SetTime.off = 1;
 			e2prom_update_flag = TRUE;
 			break;
 		case S1:     //按键K1【开启时间设置】
@@ -498,16 +506,16 @@ void KeyTask(void)
 				break;
 			}
 			LedX_Set(OFF_ON,ONLY_SET_LED);//【LED2】取反;
-			if(++on_time_set>SET_TIME_MAX)
-				on_time_set = 1;  
+			if(++SetTime.on>SET_TIME_MAX)
+				SetTime.on = 1;  
 			e2prom_update_flag = TRUE;
 			break;
 		case S3:     //按键K3【模式设置】
 			vGu8KeySec=0; 
-			if(++Run_Mode>DUAL_SEC_MODE)
-				Run_Mode = DUAL_MINU_MODE;
-			if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式关断时间为1;
-				off_time_set = 1;
+			if(++SysRun.Mode>DUAL_SEC_MODE)
+				SysRun.Mode = DUAL_MINU_MODE;
+			if(SysRun.Mode == ONLY_MINU_MODE)//如果是单分模式关断时间为1;
+				SetTime.off = 1;
 			e2prom_update_flag = TRUE;
 			break;
 
@@ -534,32 +542,32 @@ void KeyTask(void)
 		EraseStep = 0;//按擦除步骤奔跑
 		vGu8TimeFlag_1 = 0;//eprom需要操作时，不执行倒计时
 		vGu8TimeFlag_2 = 0;
-		Gu8Step = TURN_ON_MODE;//重新运行
+		SysRun.Step = TURN_ON_MODE;//重新运行
 	}
-	E2PROM_Strings[0] = on_time_set;
-	E2PROM_Strings[1] = off_time_set;
-	E2PROM_Strings[2] = Run_Mode;
+	E2PROM_Strings[0] = SetTime.on;
+	E2PROM_Strings[1] = SetTime.off;
+	E2PROM_Strings[2] = SysRun.Mode;
 	Key_EventProtect = FALSE;
 }		
 	
 void Channle_Sw(void)
 {
-	switch(Run_Mode)
+	switch(SysRun.Mode)
 	{
 		case DUAL_MINU_MODE:
-			Delay_Time = KEY_TIME_60S;//双分
+			RunTime.tMode = KEY_TIME_60S;//双分,60s
 			LedX_Set(ON,DUAL_MINU_LED); //【LED5】双分灯亮;
 			LedX_Set(OFF,DUAL_SEC_LED); //【LED5】取反;
 			LedX_Set(OFF,ONLY_MINU_LED);//【LED5】取反;
 			break;
 		case ONLY_MINU_MODE:
-			Delay_Time = KEY_TIME_60S;//单分
+			RunTime.tMode = KEY_TIME_60S;//单分,60s
 			LedX_Set(ON,ONLY_MINU_LED); //【LED5】取反;
 			LedX_Set(OFF,DUAL_MINU_LED);//【LED5】取反;
 			LedX_Set(OFF,DUAL_SEC_LED); //【LED5】取反;
 			break;
 		case DUAL_SEC_MODE:
-			Delay_Time = KEY_TIME_1S;//双秒
+			RunTime.tMode = KEY_TIME_1S;//双秒,1s
 			LedX_Set(ON,DUAL_SEC_LED);  //【LED5】取反;
 			LedX_Set(OFF,DUAL_MINU_LED);//【LED5】取反;
 			LedX_Set(OFF,ONLY_MINU_LED);//【LED5】取反;
@@ -567,7 +575,7 @@ void Channle_Sw(void)
 		default:	
 			break;
 	}
-	switch(Gu8Step)
+	switch(SysRun.Step)
 	{
 		case TURN_ON_MODE://导通倒计时
 			vGu8TimeFlag_1 = 1;
@@ -575,16 +583,16 @@ void Channle_Sw(void)
 			BitX_Set(OFF,7);//【LED8】关;
 			BitX_Set(ON,0);//【LED8】开;
 			BitX_Set(OFF,1);//【LED8】关;
-			if(vGu32TimeCnt_1>=Delay_Time)
+			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
-				on_time--;
-				if(on_time<=0){
-					Gu8Step++;
+				RunTime.on--;
+				if(RunTime.on<=0){
+					SysRun.Step++;
 					vGu8TimeFlag_1 = 0;
-					off_time = E2PROM_Strings[1];//赋值EEPROM值
-					if(Run_Mode == ONLY_MINU_MODE)//如果是单分模式则，时间到关闭运行。
-						Gu8Step = IDLE_MODE;
+					RunTime.off = E2PROM_Strings[1];//赋值EEPROM值
+					if(SysRun.Mode == ONLY_MINU_MODE)//如果是单分模式则，时间到关闭运行。
+						SysRun.Step = IDLE_MODE;
 				}
 			}	
 			break;
@@ -594,14 +602,14 @@ void Channle_Sw(void)
 			BitX_Set(OFF,6);//【LED8】关;
 			BitX_Set(ON,1);//【LED8】开;
 			BitX_Set(OFF,0);//【LED8】关;
-			if(vGu32TimeCnt_1>=Delay_Time)
+			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
-				off_time--;
-				if(off_time <= 0){
-					Gu8Step = TURN_ON_MODE;
+				RunTime.off--;
+				if(RunTime.off <= 0){
+					SysRun.Step = TURN_ON_MODE;
 					vGu8TimeFlag_1 = 0;
-					on_time = E2PROM_Strings[0];//赋值EEPROM值
+					RunTime.on = E2PROM_Strings[0];//赋值EEPROM值
 				}
 			}
 			break;
@@ -751,9 +759,9 @@ void main(void)
 	vDataOut595();	//开机默认关闭通道显示LED
 	puts_to_SerialPort("I am MC204S_K8!\n");
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
-	on_time_set = on_time = E2PROM_Strings[0];
-	off_time_set = off_time = E2PROM_Strings[1];
-	Run_Mode = E2PROM_Strings[2];
+	SetTime.on  = RunTime.on = E2PROM_Strings[0];
+	SetTime.off = RunTime.off = E2PROM_Strings[1];
+	SysRun.Mode = E2PROM_Strings[2];
 	Support_Pt2272 = E2PROM_Strings[3];
 	
 	Init_Tm1650();//数码管开显示
@@ -768,7 +776,7 @@ void main(void)
 		{
 			B_1ms = 0;	
 			vGu8KeySec = Get_KeyVal();//获取TM1650按键值
-			if(IDLE_MODE==Gu8Step)//如果进入idle 模式，按键无效，只能重启断电才生效。
+			if(IDLE_MODE==SysRun.Step)//如果进入idle 模式，按键无效，只能重启断电才生效。
 				vGu8KeySec=0;
 			Channle_Sw();
 			KeyTask();    //按键的任务函数
