@@ -37,16 +37,38 @@ v1.0£ºÈí¼şÉè¶¨
 	#define OFF_ALL  0xfe
 	#define OFF_ON   0xfd
 
-	#define S1        1
-	#define S2        2
-	#define S3        3
-	#define S4        4
-	#define S5        5
-	#define DUAL_MINU_LED  2
-	#define DUAL_SEC_LED   4
-	#define ONLY_MINU_LED  3
-	#define ONLY_SET_LED   1
-	#define ONLY_RUN_LED   0
+typedef enum {
+	KeyOnTime=1,
+	KeyOffTime,
+	KeyRunMode,
+	KeySetMode,
+	KeyBright,
+}KeyEnum;
+typedef enum {
+	ON       =0x01,
+	OFF      =0x00,
+	ON_ALL   =0xff,
+	OFF_ALL  =0xfe,
+	OFF_ON   =0xfd,	
+}LogicType;
+typedef enum {
+	DualMinBit=2,
+	DualSecBit=4,
+	OnlyMinBit=3,
+	SetModeBit=1,
+	RunModeBit=0,
+}LedBit;
+typedef enum {
+	COM1=0,
+	COM2=1,
+	COM3=2,
+	COM4=3,
+	COM5=4,
+	COM6=5,
+	OUT1=6,
+	OUT2=7,
+	COMX=8
+}Port;
 
 volatile unsigned char vGu8KeySec=0;  //°´¼üµÄ´¥·¢ĞòºÅ
 
@@ -76,8 +98,8 @@ volatile unsigned char vGu8TimeFlag_2=0;
 volatile u32 vGu32TimeCnt_2=0;
 	
 typedef struct{
-	static u8 Step = 0;   //Èí¼ş¶¨Ê±Æ÷ 1 µÄ switch ÇĞ»»²½Öè	
-	static u8 Mode = DUAL_MINU_MODE;  //ÔËĞĞÄ£Ê½ switch ÇĞ»»²½Öè£¬µôµçĞèÒª¼ÇÂ¼µ½EEPROMÖĞ	
+	static u8 Step = 0;               //ÔËĞĞ²½Öè,switch ÇĞ»»
+	static u8 Mode = DUAL_MINU_MODE;  //ÔËĞĞÄ£Ê½ switch ÇĞ»»£¬µôµçĞèÒª¼ÇÂ¼µ½EEPROMÖĞ	
 }SysRun;
 static u8 EraseStep = 0; //ÉÈÇø²Á³ı²½Öè
 static u8 Brightness = 8;
@@ -94,10 +116,10 @@ data2£ºÔËĞĞÄ£Ê½
 data3:Ö§³ÖPT2272
 */
 
-BOOL led_flash_flag = TRUE;//ÉÁË¸µÆÔÊĞíÔËĞĞ±êÖ¾
-BOOL e2prom_update_flag = FALSE;//e2prom ¸üĞÂ±êÖ¾
-BOOL dot_flag = TRUE;//ÊıÂë¹ÜµãÉÁË¸µÆÔÊĞíÔËĞĞ±êÖ¾
-BOOL e2prom_display = TRUE;//ÏÔÊ¾EEPROM Ê±¼ä
+BOOL LedFlash = TRUE;//ÉÁË¸µÆÔÊĞíÔËĞĞ±êÖ¾
+BOOL E2promErase = FALSE;//e2prom ¸üĞÂ±êÖ¾
+BOOL DotFlag = TRUE;//ÊıÂë¹ÜµãÉÁË¸µÆÔÊĞíÔËĞĞ±êÖ¾
+BOOL E2promDis = TRUE;//ÏÔÊ¾EEPROM Ê±¼ä
 BOOL Key_EventProtect = FALSE;
 
 typedef struct{
@@ -158,7 +180,7 @@ void uart1_config();	// Ñ¡Ôñ²¨ÌØÂÊ, 2: Ê¹ÓÃTimer2×ö²¨ÌØÂÊ, ÆäËüÖµ: Ê¹ÓÃTimer1×ö²
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
-void KeyTask(void);
+void KeyProcess(KeyEnum key);
 void TaskDisplayScan(void);//ÏÔÊ¾É¨Ãè
 void vTaskfFlashLed(void);//led ÉÁË¸
 void TaskLedRunScan(void);//ÅÜÂíµÆ
@@ -299,41 +321,41 @@ void TaskProcess(void)
 		}
 	}
 }
-void BitX_Set(int status,u8 Xbit)
+void ComX_Set(LogicType type,Port Xbit)
 {
 	u8 val;
 	val = Display_Code[0];//µÍËÄÎ»Ã¿´ÎÇåÁã£¬ÓÃÓÚÊıÂë¹ÜÎ»É¨Ãè
-	if(status==ON)
+	if(type==ON)
 		Display_Code[0] = clrbit(val,Xbit);//µÍµçÆ½µ¼Í¨
-	else if(status==OFF)
+	else if(type==OFF)
 		Display_Code[0] = setbit(val,Xbit);	
-	else if(ON_ALL == status)	
+	else if(ON_ALL == type)	
 		Display_Code[0] = 0x00;
-	else if(OFF_ALL == status)
+	else if(OFF_ALL == type)
 		Display_Code[0] = 0xff;
-	else if(OFF_ON == status)
+	else if(OFF_ON == type)
 		Display_Code[0] = reversebit(val,Xbit);//·­×ª
 }
-void LedX_Set(int status,u8 Xbit)
+void LedX_Set(LogicType type,LedBit Xbit)
 {
 	u8 val;
 	val = Display_Code[1];//µÍËÄÎ»Ã¿´ÎÇåÁã£¬ÓÃÓÚÊıÂë¹ÜÎ»É¨Ãè
-	if(status==ON)
+	if(type==ON)
 		Display_Code[1] = clrbit(val,Xbit);//µÍµçÆ½µ¼Í¨
-	else if(status==OFF)
+	else if(type==OFF)
 		Display_Code[1] = setbit(val,Xbit);	
-	else if(ON_ALL == status)	
+	else if(ON_ALL == type)	
 		Display_Code[1] = 0x00;
-	else if(OFF_ALL == status)
+	else if(OFF_ALL == type)
 		Display_Code[1] = 0xff;
-	else if(OFF_ON == status)
+	else if(OFF_ON == type)
 		Display_Code[1] = reversebit(val,Xbit);//·­×ª
 }
 void Date_Transform(u8 num1,u8 num2)
 {	
-	if(SysRun.Step==IDLE_MODE)//Í£Ö¹×´Ì¬ÈÃÆäÅÜÂíµÆ£¬²»×öÊı¾İÏÔÊ¾
+	if(SysRun.Step==IDLE_MODE)//idleÄ£Ê½Ö»ÅÜÂíµÆ£¬²»×öÊı¾İÏÔÊ¾
 	{
-		LedX_Set(OFF_ALL,7);//¡¾LED2¡¿È¡·´;
+		LedX_Set(OFF_ALL,7);//¹Ø±ÕËùÓĞLED;
 		return ;
 	}
 	LED8[0] = t_display[mod(num1,10)];
@@ -341,11 +363,11 @@ void Date_Transform(u8 num1,u8 num2)
 	LED8[2] = t_display[mod(num2,10)];	
 	LED8[3] = t_display[rem(num2,10)];
 	
-	if(dot_flag && (e2prom_display == FALSE)){//ÔËĞĞ×´Ì¬£¬ÉÁË¸Ğ¡Êıµã
+	if(DotFlag && (E2promDis == FALSE)){//ÔËĞĞ×´Ì¬£¬ÉÁË¸Ğ¡Êıµã
 		if(SysRun.Step==TURN_ON_MODE)
-			LED8[1] = t_display1[rem(num1,10)];
+			LED8[1] = t_display1[rem(num1,10)];//µ¼Í¨ÔËĞĞÉÁË¸
 		else
-			LED8[3] = t_display1[rem(num2,10)];
+			LED8[3] = t_display1[rem(num2,10)];//¹Ø±ÕÔËĞĞÉÁË¸
 	}
 	if(SysRun.Mode == ONLY_MINU_MODE)//Èç¹ûÊÇµ¥·ÖÄ£Ê½¹Ø±Õ¹Ø¶ÏÏÔÊ¾
 	{
@@ -355,7 +377,7 @@ void Date_Transform(u8 num1,u8 num2)
 }
 void TaskDisplayScan(void)//10ms Ë¢ĞÂÒ»´Î
 { 
-	if(e2prom_display)
+	if(E2promDis)
 		Date_Transform(E2PROM_Strings[0],E2PROM_Strings[1]);
 	else 
 		Date_Transform(RunTime.on,RunTime.off);
@@ -369,13 +391,13 @@ void TaskDisplayScan(void)//10ms Ë¢ĞÂÒ»´Î
 }
 void vTaskfFlashLed(void)
 { 
-	if(!e2prom_display)
+	if(!E2promDis)
 	{
-		LedX_Set(OFF,ONLY_RUN_LED);//¡¾LED2¡¿È¡·´;	
+		LedX_Set(OFF,RunModeBit);//Õı³£ÔËĞĞÊ±ÉèÖÃµÆ¹Ø±Õ;	
 		return;
 	}	
-	if(led_flash_flag)
-		LedX_Set(OFF_ON,ONLY_RUN_LED);//¡¾LED2¡¿È¡·´;	
+	if(LedFlash)
+		LedX_Set(OFF_ON,RunModeBit);//ÉèÖÃµÆÉÁË¸;	
 		//key_led_reverse();
 	//print_char(vGu8KeySec);//´òÓ¡°´¼üÖµ
 	//puts_to_SerialPort(E2PROM_Strings);
@@ -386,9 +408,7 @@ void TaskLedRunScan(void)
 	static u8 LED_RUN_STEP=0;
 	
 	LED_RUN_STEP++;
-	dot_flag = ~dot_flag;
-	//LED8[0] = t_display2[6];
-	//LED8[1] = t_display2[6];
+	DotFlag = ~DotFlag;
 	switch(LED_RUN_STEP)
 	{
 		case 1:
@@ -430,7 +450,7 @@ void TaskLedRunScan(void)
 }
 void vEepromUpdate(void)
 {
-	if(!e2prom_update_flag)//¸üĞÂ±êÖ¾Îª¼Ù²»¸üĞÂ
+	if(!E2promErase)//¸üĞÂ±êÖ¾Îª¼Ù²»¸üĞÂ
 		return;
 	switch(EraseStep) //·Ö½âĞ´¶ÁÉÈÇø²½Öè
 	{
@@ -457,85 +477,70 @@ void vEepromUpdate(void)
 			RunTime.off = E2PROM_Strings[1];
 			SysRun.Mode = E2PROM_Strings[2];
 			EraseStep = 0;
-			e2prom_update_flag = FALSE;
+			E2promErase = FALSE;
 			break;
 		default: 
 			break;
 	}
 }
-void Kled_Set(int status,u8 Nled)
-{
-	u8 val;
-	val = Display_Code[1];
-	if(status==ON)
-		Display_Code[1] = setbit(val,Nled);//¸ßµçÆ½µ¼Í¨
-	else if(status==OFF)
-		Display_Code[1] = clrbit(val,Nled);	
-	else if(ON_ALL == status)	
-		Display_Code[1] = 0xff;
-	else if(OFF_ALL == status)
-		Display_Code[1] = 0x00;
-	else if(OFF_ON == status)
-		Display_Code[1] = reversebit(val,Nled);//·­×ª
-}
 
-void KeyTask(void)
+void KeyProcess(KeyEnum key)
 {
-	//print_char(vGu8KeySec);
-	if(0==vGu8KeySec)
+	//print_char(key);
+	if(0==key)
 	{
 		return; //°´¼üµÄ´¥·¢ĞòºÅÊÇ0ÒâÎ¶×ÅÎŞ°´¼ü´¥·¢£¬²»Ö´ĞĞ´Ëº¯ÊıÏÂÃæµÄ´úÂë
 	}
-	switch(vGu8KeySec) //¸ù¾İ²»Í¬µÄ°´¼ü´¥·¢ĞòºÅÖ´ĞĞ¶ÔÓ¦µÄ´úÂë
+	switch(key) //¸ù¾İ²»Í¬µÄ°´¼ü´¥·¢ĞòºÅÖ´ĞĞ¶ÔÓ¦µÄ´úÂë
 	{
-		case S2:     //°´¼üK2¡¾¹Ø¶ÏÊ±¼äÉèÖÃ¡¿
-			vGu8KeySec=0;
-			if(!e2prom_display||SysRun.Mode == ONLY_MINU_MODE)//µ¥·ÖºÍÔËĞĞÄ£Ê½²»ÉèÖÃ¹Ø¶ÏÊ±¼ä
+		case KeyOffTime:     //¡¾¹Ø¶ÏÊ±¼äÉèÖÃ¡¿
+			key=0;
+			if(!E2promDis||SysRun.Mode == ONLY_MINU_MODE)//µ¥·ÖºÍÔËĞĞÄ£Ê½²»ÉèÖÃ¹Ø¶ÏÊ±¼ä
 			{
 				break;
 			}
-			LedX_Set(OFF_ON,ONLY_SET_LED);//¡¾LED2¡¿È¡·´;	
+			LedX_Set(OFF_ON,SetModeBit);//¡¾ÉèÖÃµÆ¡¿È¡·´;	
 			if(++SetTime.off>SET_TIME_MAX)
 				SetTime.off = 1;
-			e2prom_update_flag = TRUE;
+			E2promErase = TRUE;
 			break;
-		case S1:     //°´¼üK1¡¾¿ªÆôÊ±¼äÉèÖÃ¡¿
-			vGu8KeySec=0;
-			if(!e2prom_display)//ÔËĞĞÄ£Ê½²»ÉèÖÃÊ±¼ä
+		case KeyOnTime:     //¡¾¿ªÆôÊ±¼äÉèÖÃ¡¿
+			key=0;
+			if(!E2promDis)//ÔËĞĞÄ£Ê½²»ÉèÖÃÊ±¼ä
 			{
 				break;
 			}
-			LedX_Set(OFF_ON,ONLY_SET_LED);//¡¾LED2¡¿È¡·´;
+			LedX_Set(OFF_ON,SetModeBit);//¡¾ÉèÖÃµÆ¡¿È¡·´;
 			if(++SetTime.on>SET_TIME_MAX)
 				SetTime.on = 1;  
-			e2prom_update_flag = TRUE;
+			E2promErase = TRUE;
 			break;
-		case S3:     //°´¼üK3¡¾Ä£Ê½ÉèÖÃ¡¿
-			vGu8KeySec=0; 
+		case KeyRunMode:     //¡¾ÔËĞĞÄ£Ê½¡¿
+			key=0; 
 			if(++SysRun.Mode>DUAL_SEC_MODE)
 				SysRun.Mode = DUAL_MINU_MODE;
 			if(SysRun.Mode == ONLY_MINU_MODE)//Èç¹ûÊÇµ¥·ÖÄ£Ê½¹Ø¶ÏÊ±¼äÎª1;
 				SetTime.off = 1;
-			e2prom_update_flag = TRUE;
+			E2promErase = TRUE;
 			break;
 
-		case S5:     //°´¼üK4
-			//LedX_Set(OFF_ON,ONLY_SET_LED);//¡¾LED2¡¿È¡·´;
-			vGu8KeySec=0; 
+		case KeyBright:     //¡¾±³¹âÉèÖÃ¡¿
+			//LedX_Set(OFF_ON,SetModeBit);//¡¾ÉèÖÃµÆ¡¿È¡·´;
+			key=0; 
 			if(--Brightness<BLMIM)
 				Brightness = 8; 
 			//Tube_CMD(P7_MODE,Brightness);
 			
 			break;
-		case S4:     //°´¼üK5¡¾ÏÔÊ¾Ä£Ê½¡¿
-			vGu8KeySec=0; 
-			LedX_Set(OFF_ON,ONLY_SET_LED);//¡¾LED2¡¿È¡·´;	
-			e2prom_display = ~e2prom_display;
+		case KeySetMode:     //¡¾ÉèÖÃÄ£Ê½¡¿
+			key=0; 
+			LedX_Set(OFF_ON,SetModeBit);//¡¾ÉèÖÃµÆ¡¿È¡·´;	
+			E2promDis = ~E2promDis;
 			break;
 		default:     
 			break;
 	}
-	if(e2prom_update_flag)
+	if(E2promErase)
 	{
 		vGu8TimeFlag_2 = 0;
 		vGu32TimeCnt_2 = 0;//ÓĞÁ¬Ğø´¥·¢Ê±eeprom²Ù×÷µ¹¼ÆÊ±²»¿ªÊ¼
@@ -556,21 +561,21 @@ void Channle_Sw(void)
 	{
 		case DUAL_MINU_MODE:
 			RunTime.tMode = KEY_TIME_60S;//Ë«·Ö,60s
-			LedX_Set(ON,DUAL_MINU_LED); //¡¾LED5¡¿Ë«·ÖµÆÁÁ;
-			LedX_Set(OFF,DUAL_SEC_LED); //¡¾LED5¡¿È¡·´;
-			LedX_Set(OFF,ONLY_MINU_LED);//¡¾LED5¡¿È¡·´;
+			LedX_Set(ON,DualMinBit);  //¡¾LED5¡¿Ë«·ÖµÆÁÁ;
+			LedX_Set(OFF,DualSecBit); //¡¾LED5¡¿È¡·´;
+			LedX_Set(OFF,OnlyMinBit); //¡¾LED5¡¿È¡·´;
 			break;
 		case ONLY_MINU_MODE:
 			RunTime.tMode = KEY_TIME_60S;//µ¥·Ö,60s
-			LedX_Set(ON,ONLY_MINU_LED); //¡¾LED5¡¿È¡·´;
-			LedX_Set(OFF,DUAL_MINU_LED);//¡¾LED5¡¿È¡·´;
-			LedX_Set(OFF,DUAL_SEC_LED); //¡¾LED5¡¿È¡·´;
+			LedX_Set(ON,OnlyMinBit);  //¡¾LED5¡¿È¡·´;
+			LedX_Set(OFF,DualMinBit); //¡¾LED5¡¿È¡·´;
+			LedX_Set(OFF,DualSecBit); //¡¾LED5¡¿È¡·´;
 			break;
 		case DUAL_SEC_MODE:
 			RunTime.tMode = KEY_TIME_1S;//Ë«Ãë,1s
-			LedX_Set(ON,DUAL_SEC_LED);  //¡¾LED5¡¿È¡·´;
-			LedX_Set(OFF,DUAL_MINU_LED);//¡¾LED5¡¿È¡·´;
-			LedX_Set(OFF,ONLY_MINU_LED);//¡¾LED5¡¿È¡·´;
+			LedX_Set(ON,DualSecBit);  //¡¾LED5¡¿È¡·´;
+			LedX_Set(OFF,DualMinBit); //¡¾LED5¡¿È¡·´;
+			LedX_Set(OFF,OnlyMinBit); //¡¾LED5¡¿È¡·´;
 			break;
 		default:	
 			break;
@@ -579,10 +584,10 @@ void Channle_Sw(void)
 	{
 		case TURN_ON_MODE://µ¼Í¨µ¹¼ÆÊ±
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(ON,6);//¡¾LED8¡¿¿ª;
-			BitX_Set(OFF,7);//¡¾LED8¡¿¹Ø;
-			BitX_Set(ON,0);//¡¾LED8¡¿¿ª;
-			BitX_Set(OFF,1);//¡¾LED8¡¿¹Ø;
+			ComX_Set(ON,OUT2); //¡¾OUT2¡¿¿ª;
+			ComX_Set(OFF,OUT1);//¡¾OUT1¡¿¹Ø;
+			ComX_Set(ON,0);    //¡¾¡¿¿ª;
+			ComX_Set(OFF,1);   //¡¾¡¿¹Ø;
 			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -598,10 +603,10 @@ void Channle_Sw(void)
 			break;
 		case TURN_OFF_MODE://¹Ø¶Ïµ¹¼ÆÊ±
 			vGu8TimeFlag_1 = 1;
-			BitX_Set(ON,7);//¡¾LED8¡¿¿ª;
-			BitX_Set(OFF,6);//¡¾LED8¡¿¹Ø;
-			BitX_Set(ON,1);//¡¾LED8¡¿¿ª;
-			BitX_Set(OFF,0);//¡¾LED8¡¿¹Ø;
+			ComX_Set(ON,OUT1); //¡¾OUT1¡¿¿ª;
+			ComX_Set(OFF,OUT2);//¡¾OUT2¡¿¹Ø;
+			ComX_Set(ON,1);    //¡¾¡¿¿ª;
+			ComX_Set(OFF,0);   //¡¾¡¿¹Ø;
 			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -614,7 +619,7 @@ void Channle_Sw(void)
 			}
 			break;
 		case IDLE_MODE://µ¥·Ö¹Ø¶ÏÄ£Ê½×´Ì¬
-			BitX_Set(OFF_ALL,7);//¡¾LED8¡¿¿ª;
+			ComX_Set(OFF_ALL,COMX);//¡¾¹Ø±ÕËùÓĞ¶Ë¿Ú¡¿;
 			vGu8TimeFlag_1 = 0;	
 			break;
 			
@@ -779,7 +784,7 @@ void main(void)
 			if(IDLE_MODE==SysRun.Step)//Èç¹û½øÈëidle Ä£Ê½£¬°´¼üÎŞĞ§£¬Ö»ÄÜÖØÆô¶Ïµç²ÅÉúĞ§¡£
 				vGu8KeySec=0;
 			Channle_Sw();
-			KeyTask();    //°´¼üµÄÈÎÎñº¯Êı
+			KeyProcess(KeyEnum)vGu8KeySec)    //°´¼üµÄÈÎÎñº¯Êı
 			TaskProcess();//1£ºled 2£ºÊıÂë¹ÜÉÁË¸ 3¡¢e2prom¶ÁĞ´
 		}
 		TaskDisplayScan();
