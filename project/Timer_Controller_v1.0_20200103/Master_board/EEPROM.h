@@ -15,7 +15,7 @@
 #ifndef	__EEPROM_H
 #define	__EEPROM_H
 
-#include	"config.h"
+#include	"system.h"
 
 //15W EEPROM 起始扇区地址
 #define IAP_ADDRESS 0x0000

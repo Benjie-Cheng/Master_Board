@@ -1,7 +1,7 @@
 #ifndef __TM1650_I2C_H
 #define __TM1650_I2C_H
 #include "config.h"
-#include "debug.h" 
+#include "system.h" 
 //#include <intrinsics.h>
  
  

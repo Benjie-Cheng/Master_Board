@@ -22,13 +22,13 @@ void Tube_CMD(u8 mode, u8 Brightness)
 		dispaly_mode = P7_MODE;
     if(Brightness)
     {
-		if(Brightness >=8)
-		{
-			Brightness = 8;
-			TM1650_Set(CMD_MODE, BL(0) | dispaly_mode | CMD_ON);//开启显示，最亮显示
-		}
-		else
-			TM1650_Set(CMD_MODE, BL(Brightness) | dispaly_mode | CMD_ON);//开启显示
+			if(Brightness >=8)
+			{
+				Brightness = 8;
+				TM1650_Set(CMD_MODE, BL(8) | dispaly_mode | CMD_ON);//开启显示，最亮显示
+			}
+			else
+				TM1650_Set(CMD_MODE, BL(Brightness) + dispaly_mode +CMD_ON);//开启显示
     }
     else
     {

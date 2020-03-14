@@ -22,56 +22,19 @@ v1.0：软件设定
 1、波特率115200 ，晶振35M          
 2、
 ******************************************/
-#include "config.h"
-#include "debug.h"
+#include "system.h"
 #include "eeprom.h"
 #include "TM1650_I2C.h"
 
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))		//Timer 0 中断频率, 1000次/秒
 #define	Baudrate1	115200UL                                //通信波特率115200
 
-
-	#define ON       1
-	#define OFF      0
-	#define ON_ALL   0xff
-	#define OFF_ALL  0xfe
-	#define OFF_ON   0xfd
-
-typedef enum {
-	KeyOnTime=1,
-	KeyOffTime,
-	KeyRunMode,
-	KeySetMode,
-	KeyBright,
-}KeyEnum;
-typedef enum {
-	ON       =0x01,
-	OFF      =0x00,
-	ON_ALL   =0xff,
-	OFF_ALL  =0xfe,
-	OFF_ON   =0xfd,	
-}LogicType;
-typedef enum {
-	DualMinBit=2,
-	DualSecBit=4,
-	OnlyMinBit=3,
-	SetModeBit=1,
-	RunModeBit=0,
-}LedBit;
-typedef enum {
-	COM1=0,
-	COM2=1,
-	COM3=2,
-	COM4=3,
-	COM5=4,
-	COM6=5,
-	OUT1=6,
-	OUT2=7,
-	COMX=8
-}Port;
+//---------------define in system.h-----------------//
+	SysRunStruct SysRun;
+	SetTimestruct SetTime;
+	RunTimestruct RunTime;
 
 volatile unsigned char vGu8KeySec=0;  //按键的触发序号
-
 
 //========================================================================
 /*************	本地变量声明	**************/
@@ -79,28 +42,13 @@ volatile unsigned char vGu8KeySec=0;  //按键的触发序号
 BOOL B_1ms;	 //1ms标志
 BOOL B_TX1_Busy;  //发送忙标志
 
-enum Gu8Step{
-	TURN_ON_MODE=0,
-	TURN_OFF_MODE,
-	IDLE_MODE,
-};
-enum Run_Mode{
-	DUAL_MINU_MODE=0,
-	ONLY_MINU_MODE,
-	DUAL_SEC_MODE,
-};
-
-
 //“软件定时器 1” 的相关变量
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile u32 vGu32TimeCnt_1=0;	
 volatile unsigned char vGu8TimeFlag_2=0;
 volatile u32 vGu32TimeCnt_2=0;
 	
-typedef struct{
-	static u8 Step = 0;               //运行步骤,switch 切换
-	static u8 Mode = DUAL_MINU_MODE;  //运行模式 switch 切换，掉电需要记录到EEPROM中	
-}SysRun;
+
 static u8 EraseStep = 0; //扇区擦除步骤
 static u8 Brightness = 8;
 
@@ -119,18 +67,10 @@ data3:支持PT2272
 BOOL LedFlash = TRUE;//闪烁灯允许运行标志
 BOOL E2promErase = FALSE;//e2prom 更新标志
 BOOL DotFlag = TRUE;//数码管点闪烁灯允许运行标志
-BOOL E2promDis = TRUE;//显示EEPROM 时间
+BOOL E2promDis = FALSE;//显示EEPROM 时间
 BOOL Key_EventProtect = FALSE;
 
-typedef struct{
-	static u8 on = 0;
-	static u8 off = 0;		
-}SetTime;//设置通断的时间结构体，需要写入EEPROM中的时间
-typedef struct{
-	static u8 on = 0;
-	static u8 off = 0;
-	static u16 tMode = 0;//用于双秒，双分切换的中间变量	
-}RunTime;//运行时间结构体
+
 static u8   Support_Pt2272 = 0;
 
 #define KEY_FILTER_TIME 20 //滤波的“ 稳定时间” 20ms
@@ -173,7 +113,7 @@ sbit	A_HC595_MR    = P1^5;	//pin 32	低电平复位
 #define PT2272_D2      P37
 #define PT2272_D3      P36
 //#define PT2272_DATA    (PT2272_D0 + PT2272_D1*2)// + PT2272_D2*4 + PT2272_D3*8)
-
+void InitData(void);
 void vDataIn595(u8 dat);
 void vDataOut595(void);
 void uart1_config();	// 选择波特率, 2: 使用Timer2做波特率, 其它值: 使用Timer1做波特率.
@@ -355,7 +295,7 @@ void Date_Transform(u8 num1,u8 num2)
 {	
 	if(SysRun.Step==IDLE_MODE)//idle模式只跑马灯，不做数据显示
 	{
-		LedX_Set(OFF_ALL,7);//关闭所有LED;
+		LedX_Set(OFF_ALL,(LedBit)7);//关闭所有LED;
 		return ;
 	}
 	LED8[0] = t_display[mod(num1,10)];
@@ -494,7 +434,7 @@ void KeyProcess(KeyEnum key)
 	switch(key) //根据不同的按键触发序号执行对应的代码
 	{
 		case KeyOffTime:     //【关断时间设置】
-			key=0;
+			key=KeyNull;
 			if(!E2promDis||SysRun.Mode == ONLY_MINU_MODE)//单分和运行模式不设置关断时间
 			{
 				break;
@@ -505,7 +445,7 @@ void KeyProcess(KeyEnum key)
 			E2promErase = TRUE;
 			break;
 		case KeyOnTime:     //【开启时间设置】
-			key=0;
+			key=KeyNull;
 			if(!E2promDis)//运行模式不设置时间
 			{
 				break;
@@ -516,7 +456,7 @@ void KeyProcess(KeyEnum key)
 			E2promErase = TRUE;
 			break;
 		case KeyRunMode:     //【运行模式】
-			key=0; 
+			key=KeyNull; 
 			if(++SysRun.Mode>DUAL_SEC_MODE)
 				SysRun.Mode = DUAL_MINU_MODE;
 			if(SysRun.Mode == ONLY_MINU_MODE)//如果是单分模式关断时间为1;
@@ -526,14 +466,14 @@ void KeyProcess(KeyEnum key)
 
 		case KeyBright:     //【背光设置】
 			//LedX_Set(OFF_ON,SetModeBit);//【设置灯】取反;
-			key=0; 
+			key=KeyNull; 
 			if(--Brightness<BLMIM)
 				Brightness = 8; 
 			//Tube_CMD(P7_MODE,Brightness);
 			
 			break;
 		case KeySetMode:     //【设置模式】
-			key=0; 
+			key=KeyNull; 
 			LedX_Set(OFF_ON,SetModeBit);//【设置灯】取反;	
 			E2promDis = ~E2promDis;
 			break;
@@ -677,7 +617,7 @@ if( Support_Pt2272){
 			
 			Su8KeyLock2=1;
 			Su16KeyCnt2=0;	
-			if(Key_Code == S1 || Key_Code == S2)
+			if(Key_Code == KeyOnTime || Key_Code == KeyOffTime)
 				Key_EventProtect = FALSE;//不需要按键保护
 			else
 				Key_EventProtect = TRUE;//需要按键保护
@@ -686,7 +626,7 @@ if( Support_Pt2272){
 	}
 	else if(Su8KeyLock2)//如果连续按下
 	{
-		if(Key_Code!=S1 && Key_Code!=S2)//不是S1,S2不再触发
+		if(Key_Code!=KeyOnTime && Key_Code!=KeyOffTime)//不是S1,S2不再触发
 			return 0;
 		else
 		{	
@@ -724,13 +664,13 @@ if( Support_Pt2272){
 	else if(0==Su8KeyLock1)
 	{
 		Su8KeyLock1 = 1;
-		if(val == S1 || val == S2)
+		if(val == KeyOnTime || val == KeyOffTime)
 			Key_EventProtect = FALSE;//不需要按键保护
 		else
 			Key_EventProtect = TRUE;//需要按键保护
 		return val;
 	}
-	else if(val!=S1 && val!=S2)
+	else if(val!=KeyOnTime && val!=KeyOffTime)
 	{
 		return 0;
 	}
@@ -749,6 +689,10 @@ if( Support_Pt2272){
 	}		
 	return 0;	
 }
+void InitData(void)
+{
+	SysRun.Mode = DUAL_MINU_MODE;
+}
 //========================================================================
 // 函数: void main(void)
 // 描述: 主程序.
@@ -758,6 +702,7 @@ if( Support_Pt2272){
 //========================================================================
 void main(void)
 {
+	InitData();
 	stc15x_hw_init();
 	vDataIn595(0xff);
 	vDataIn595(0xff);
@@ -770,6 +715,8 @@ void main(void)
 	Support_Pt2272 = E2PROM_Strings[3];
 	
 	Init_Tm1650();//数码管开显示
+	//Tube_CMD(P7_MODE,3);
+	
 	TM1650_Set(DIG1,t_display[0]);
 	TM1650_Set(DIG2,t_display[1]);
 	TM1650_Set(DIG3,t_display[2]);
@@ -784,7 +731,7 @@ void main(void)
 			if(IDLE_MODE==SysRun.Step)//如果进入idle 模式，按键无效，只能重启断电才生效。
 				vGu8KeySec=0;
 			Channle_Sw();
-			KeyProcess(KeyEnum)vGu8KeySec)    //按键的任务函数
+			KeyProcess((KeyEnum)vGu8KeySec);    //按键的任务函数
 			TaskProcess();//1：led 2：数码管闪烁 3、e2prom读写
 		}
 		TaskDisplayScan();
