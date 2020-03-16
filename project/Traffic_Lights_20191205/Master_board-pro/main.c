@@ -44,16 +44,13 @@ enum{
 	LEDG_RED=0,
 	LEDG_GREEN=4,  	
 };
-
-	#define ON       1
-	#define OFF      0
-	#define ON_ALL   0xff
-	#define OFF_ALL  0xfe
-	#define OFF_ON   0xfd
-	#define RED_LED     2
-	#define YELLOW_LED  1
-	#define GREEN_LED   0
-	#define CAR_LED     3
+typedef enum{
+	ON=1,
+	OFF=0,
+	ON_ALL=0xff,
+	OFF_ALL=0xfe,
+	OFF_ON=0xfd	
+}LogicType;
 	
 #define GPIO_CHECK_PIN P30
 #define GPIO_OUT_PIN   P31
@@ -131,7 +128,7 @@ typedef enum _TASK_LIST
 //	TAST_LED_RUN,        	//跑马灯
 //	TASK_KEY_SERV,
 //	TASK_RTC,
-//	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务。。。。
+//	TASK_DISP_WS,             // 工作状态显示// 这里添加你的任务
 	// 这里添加你的任务
 	TASKS_MAX                 // 总的可供分配的定时任务数目
 } TASK_LIST;
@@ -184,13 +181,13 @@ void stc15x_hw_init(void)
 {
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
-	P2n_push_pull(0xff);	//设置为准双向口
+	P2n_standard(0xff);//设置为准双向口
 	P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
 	timer0_init();
 	uart1_config();
-	GPIO_OUT_PIN = 0;//输出低，让P26检测
+	//GPIO_OUT_PIN = 0;//输出低，让P26检测
 }
 
 void TaskRemarks(void)
@@ -221,33 +218,33 @@ void TaskProcess(void)
 		}
 	}
 }
-void Kled_Set(int status,u8 Nled)//LED设置
+void Kled_Set(LogicType type,u8 Nled)//LED设置
 {
 	u8 val;
 	val = LED[2];
-	if(status==ON)
+	if(type==ON)
 		LED[2] = setbit(val,Nled);//高电平导通
-	else if(status==OFF)
+	else if(type==OFF)
 		LED[2] = clrbit(val,Nled);	
-	else if(ON_ALL == status)	
+	else if(ON_ALL == type)	
 		LED[2] = 0xff;
-	else if(OFF_ALL == status)
+	else if(OFF_ALL == type)
 		LED[2] = 0x00;
-	else if(OFF_ON == status)
+	else if(OFF_ON == type)
 		LED[2] = reversebit(val,Nled);//翻转
 }
-void BitX_Set(int status,u8 Xbit)
+void BitX_Set(LogicType type,u8 Xbit)
 {
 	u8 val=0;
-	if(status==ON)
+	if(type==ON)
 		Display_Code[0] = setbit(val,Xbit);//高电平导通
-	else if(status==OFF)
+	else if(type==OFF)
 		Display_Code[0] = clrbit(val,Xbit);	
-	else if(ON_ALL == status)	
+	else if(ON_ALL == type)	
 		Display_Code[0] = 0xff;
-	else if(OFF_ALL == status)
+	else if(OFF_ALL == type)
 		Display_Code[0] = 0x00;
-	else if(OFF_ON == status)
+	else if(OFF_ON == type)
 		Display_Code[0] = reversebit(val,Xbit);//翻转
 	
 }
@@ -268,6 +265,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	BitX_Set(OFF,display_index);//改变亮度
 #endif	
 		P_COM0=P_COM1=P_COM2=0;//显示段码前先关闭位码消影;
+		_nop_();
 		//段码显示，交通灯显示
 		LED8_A = getbit(LED8[display_index],0);
 		LED8_B = getbit(LED8[display_index],1);
@@ -305,48 +303,6 @@ void vTaskfFlashLed(void)
 		break;	
 	}
 }
-void TaskLedRunScan(void)
-{
-	static u8 LED_RUN_STEP=0;
-	LED_RUN_STEP++;
-	switch(LED_RUN_STEP)
-	{
-	case 1:
-		LED8[3] = ~0x01;
-		LED8[2] = ~0x00;
-		break;
-	case 2:
-		LED8[3] = ~0x02;
-		LED8[2] = ~0x00;
-		break;
-	case 3:
-		LED8[3] = ~0x04;
-		LED8[2] = ~0x00;
-		break;
-	case 4:
-		LED8[3] = ~0x08;
-		LED8[2] = ~0x00;
-		break;
-	case 5:
-		LED8[3] = ~0x00;
-		LED8[2] = ~0x08;
-		break;
-	case 6:
-		LED8[3] = ~0x00;
-		LED8[2] = ~0x10;
-		break;
-	case 7:
-		LED8[3] = ~0x00;
-		LED8[2] = ~0x20;
-		break;
-	case 8:
-		LED8[3] = ~0x00;
-		LED8[2] = ~0x01;
-		LED_RUN_STEP = 0;
-		break;
-	}
-}
-
 void Gpio_ValRead(void)	
 {	
 	static unsigned char Su8KeyLock1; //1 号按键的自锁
