@@ -221,17 +221,17 @@ void TaskProcess(void)
 void Kled_Set(LogicType type,u8 Nled)//LED设置
 {
 	u8 val;
-	val = LED[2];
+	val = LED8[2];
 	if(type==ON)
-		LED[2] = setbit(val,Nled);//高电平导通
+		LED8[2] = setbit(val,Nled);//高电平导通
 	else if(type==OFF)
-		LED[2] = clrbit(val,Nled);	
+		LED8[2] = clrbit(val,Nled);	
 	else if(ON_ALL == type)	
-		LED[2] = 0xff;
+		LED8[2] = 0xff;
 	else if(OFF_ALL == type)
-		LED[2] = 0x00;
+		LED8[2] = 0x00;
 	else if(OFF_ON == type)
-		LED[2] = reversebit(val,Nled);//翻转
+		LED8[2] = reversebit(val,Nled);//翻转
 }
 void BitX_Set(LogicType type,u8 Xbit)
 {
@@ -254,7 +254,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	{
 		P_COM0 = 0;
 		P_COM1 = 0;
-		P_COM3 = 0;
+		P_COM2 = 0;
 		return;
 	}
 	for(display_index = 0;display_index < INDEX_MAX;display_index++){
