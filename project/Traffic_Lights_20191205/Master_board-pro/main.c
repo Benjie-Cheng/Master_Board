@@ -182,7 +182,7 @@ void stc15x_hw_init(void)
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
 	P2n_standard(0xff);//设置为准双向口
-	P3n_standard(0xff);	//设置为准双向口
+	P0n_push_pull(0xc8);//设置为强推挽
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
 	timer0_init();
