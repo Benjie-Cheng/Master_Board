@@ -100,7 +100,12 @@ typedef enum {
 	KeyOffTime,
 	KeyRunMode,
 	KeySetMode,
-	KeySetLong,
+	KeyCom1,
+	KeyCom2,
+	KeyCom3,
+	KeyCom4,
+	KeyCom5,
+	KeyCom6,
 	KeyBright
 }KeyEnum;
 typedef enum {

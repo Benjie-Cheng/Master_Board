@@ -14,13 +14,17 @@
 3、PT2272 遥控功能接口。
 4、BT05蓝牙uart接口。
 
+
 存在缺陷：
 1、时间设置为0的时候，会乱码，范围应该在1~99。
 2、长按连续触发。
+3、多个控制板同一个按键受控问题需要解决。
 
 v1.0：软件设定
 1、波特率115200 ，晶振35M          
 2、
+程序日志：
+1、添加遥控控制端口使能功能，需要写入eeprom保存。
 ******************************************/
 #include "system.h"
 #include "eeprom.h"
@@ -55,13 +59,14 @@ static u8 Brightness = 8;
 #define     SET_TIME_MAX 99  //最大值
 #define     BLMAX 8//背光最大
 #define     BLMIM 1//背光最小
-#define     E2PROM_LENGTH 4
-static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00,0x01};
+#define     E2PROM_LENGTH 5
+static u8 	E2PROM_Strings[E2PROM_LENGTH] = {0x00,0x00,0x00,0x01,0xff};
 /*
 data0：通时间
 data1：关时间
 data2：运行模式
 data3:支持PT2272
+data4:端口支持数据
 */
 
 BOOL LedFlash = TRUE;//闪烁灯允许运行标志
@@ -81,7 +86,7 @@ static u8   Support_Pt2272 = 0;
 #define KEY_TIME_60S 60000 //时间是 60000ms
 
 
-static u8 	Display_Code[2]={0xff,0xff};		    //595，光耦和led状态，低电平点亮。
+static u8 	Display_Code[3]={0xff,0xff,0x00};		//0：光耦:1：led状态2:端口使能状态。
 static u8 	LED8[4] = {0x00,0x00,0x00,0x00};		//显示缓冲支持四位
 
 #define Buf_Max 20
@@ -275,6 +280,21 @@ void ComX_Set(LogicType type,Port Xbit)
 		Display_Code[0] = 0xff;
 	else if(OFF_ON == type)
 		Display_Code[0] = reversebit(val,Xbit);//翻转
+}
+void ComX_Enable(LogicType type,Port Xbit)
+{
+	u8 val;
+	val = Display_Code[2];//用于使能级联的1-6位
+	if(type==ON)
+		Display_Code[2] = clrbit(val,Xbit);//低电平导通
+	else if(type==OFF)
+		Display_Code[2] = setbit(val,Xbit);	
+	else if(ON_ALL == type)	
+		Display_Code[2] = 0x00;
+	else if(OFF_ALL == type)
+		Display_Code[2] = 0xff;
+	else if(OFF_ON == type)
+		Display_Code[2] = reversebit(val,Xbit);//翻转
 }
 void LedX_Set(LogicType type,LedBit Xbit)
 {
@@ -477,6 +497,30 @@ void KeyProcess(KeyEnum key)
 			LedX_Set(OFF_ON,SetModeBit);//【设置灯】取反;	
 			E2promDis = ~E2promDis;
 			break;
+		case KeyCom1:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM1);
+			break;
+		case KeyCom2:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM2);
+			break;
+		case KeyCom3:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM3);
+			break;
+		case KeyCom4:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM4);
+			break;
+		case KeyCom5:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM5);
+			break;
+		case KeyCom6:
+			E2promErase = TRUE;
+			ComX_Enable(OFF_ON,COM6);
+			break;
 		default:     
 			break;
 	}
@@ -492,9 +536,21 @@ void KeyProcess(KeyEnum key)
 	E2PROM_Strings[0] = SetTime.on;
 	E2PROM_Strings[1] = SetTime.off;
 	E2PROM_Strings[2] = SysRun.Mode;
+	E2PROM_Strings[4] = Display_Code[2];
 	Key_EventProtect = FALSE;
-}		
-	
+}
+#define COM_MAX 6
+void Com_Match(BOOL en,u8 val)//端口使能控制
+{
+	u8 i=0;
+	for(i=0;i<COM_MAX;i++)
+	{
+		if(en)
+			ComX_Set(getbit(val,i)?ON:OFF,i); 
+		else
+			ComX_Set(OFF,i); 
+	}
+}
 void Channle_Sw(void)
 {
 	switch(SysRun.Mode)
@@ -526,8 +582,7 @@ void Channle_Sw(void)
 			vGu8TimeFlag_1 = 1;
 			ComX_Set(ON,OUT2); //【OUT2】开;
 			ComX_Set(OFF,OUT1);//【OUT1】关;
-			ComX_Set(ON,0);    //【】开;
-			ComX_Set(OFF,1);   //【】关;
+			Com_Match(ON,Display_Code[2]);//使能者运行
 			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -545,8 +600,7 @@ void Channle_Sw(void)
 			vGu8TimeFlag_1 = 1;
 			ComX_Set(ON,OUT1); //【OUT1】开;
 			ComX_Set(OFF,OUT2);//【OUT2】关;
-			ComX_Set(ON,1);    //【】开;
-			ComX_Set(OFF,0);   //【】关;
+			Com_Match(OFF,Display_Code[2]);//使能者运行
 			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
 				vGu32TimeCnt_1 = 0;
@@ -713,6 +767,7 @@ void main(void)
 	SetTime.off = RunTime.off = E2PROM_Strings[1];
 	SysRun.Mode = E2PROM_Strings[2];
 	Support_Pt2272 = E2PROM_Strings[3];
+	Display_Code[2] = E2PROM_Strings[4];
 	
 	Init_Tm1650();//数码管开显示
 	//Tube_CMD(P7_MODE,3);
