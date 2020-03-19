@@ -19,9 +19,10 @@
 #include "config.h"
 #include "debug.h"
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))	//Timer 0 中断频率, 1000次/秒
+
 volatile unsigned char vGu8TimeFlag_1=0;
 volatile u32 vGu32TimeCnt_1=0;	
-//bit B_1ms;	 //1ms标志
+
 #define LED_TIME_1S  1000  //时间是 10000ms
 /*-----------------自定义时间区域---------------------*/
 #define RIGHT_LED_TIME 15
@@ -34,7 +35,9 @@ volatile unsigned int y_count = FRONT_LED_TIME;
 volatile unsigned int r_count = RIGHT_LED_TIME;
 BOOL FlashFlag = FALSE;
 BOOL LowTime = FALSE;
-
+#define LEFT_LED_CODE  0x34
+#define FRONT_LED_CODE 0x07
+#define RIGHT_LED_CODE 0x1A
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
 
 #define	INDEX_MAX 3	//显示位索引
@@ -146,6 +149,10 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	_nop_();
 	BitX_Set(OFF,display_index);//改变亮度
 #endif	
+		if(LowTime)
+		{
+			;//闪烁设置
+		}
 		P_COM0=P_COM1=P_COM2=0;//显示段码前先关闭位码消影;
 		_nop_();
 		//段码显示，交通灯显示
@@ -169,8 +176,7 @@ void Traffic_Led(void)
 	{
 		case 0://左转，35s
 			vGu8TimeFlag_1 = 1;
-			//Turn_Direction(Gu8Step);
-			LED8[2]=0x34;
+			LED8[2] = LEFT_LED_CODE;
 			r_count = RIGHT_LED_TIME;
 			LED8[0] = t_display[mod(g_count,10)];
 			LED8[1] = t_display[rem(g_count,10)];
@@ -188,9 +194,7 @@ void Traffic_Led(void)
 			break;
 		case 1://向前,25s
 			g_count = LEFT_LED_TIME;
-			//g_count = FRONT_LED_TIME;
-			//Turn_Direction(Gu8Step);
-			LED8[2]=0x07;
+			LED8[2] = FRONT_LED_CODE;
 			LED8[0] = t_display[mod(y_count,10)];
 			LED8[1] = t_display[rem(y_count,10)];	
 			if(y_count<=LowTimeS)
@@ -207,8 +211,7 @@ void Traffic_Led(void)
 			break;
 		case 2://向右,15s
 			y_count = FRONT_LED_TIME;
-			LED8[2]=0x1A;
-			//Turn_Direction(Gu8Step);
+			LED8[2] = RIGHT_LED_CODE;
 			LED8[0] = t_display[mod(r_count,10)];
 			LED8[1] = t_display[rem(r_count,10)];	
 			if(r_count<=LowTimeS)
@@ -245,7 +248,6 @@ void main(void)
 //========================================================================
 void timer0 (void) interrupt TIMER0_VECTOR
 {
-	//B_1ms = 1;		//1ms标志
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
 	}

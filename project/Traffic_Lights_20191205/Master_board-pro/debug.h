@@ -6,7 +6,6 @@
 #include <string.h>           // 加入此头文件后,可使用strstr库函数
 #define mod(a,b)	a/b  //求模
 #define rem(a,b)	a%b  //求余
-#define odd(x)      rem(x,2)  //奇数判断
 #define setbit(x,y) x|=(1<<y)         //将X的第Y位置1
 #define clrbit(x,y) x&=~(1<<y)        //将X的第Y位清0
 #define reversebit(x,y)  x^=(1<<y)    //将x的第Y位取反
