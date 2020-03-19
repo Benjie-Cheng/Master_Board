@@ -11,16 +11,4 @@
 #define clrbit(x,y) x&=~(1<<y)        //将X的第Y位清0
 #define reversebit(x,y)  x^=(1<<y)    //将x的第Y位取反
 #define getbit(x,y)   ((x) >> (y)&1)
-#define MAX              16             //随机数最大值
-#define MIN              1              //随机数最小值
-#define creat_random() (rand() % (MAX + 1 - MIN)+ MIN)      //产生随机数，用于数据加密
-
-
-
-void TxSend(u8 dat);
-void Fake_PrintString(u8 *puts);
-
-void key_led_reverse(void);
-void key_led_on(BOOL enable);
-
 #endif
