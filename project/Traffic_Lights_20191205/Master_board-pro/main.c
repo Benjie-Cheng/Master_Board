@@ -21,14 +21,15 @@
 #define	Timer0_Reload	(65536UL -(MAIN_Fosc / 1000))	//Timer 0 中断频率, 1000次/秒
 
 volatile unsigned char vGu8TimeFlag_1=0;
-volatile u32 vGu32TimeCnt_1=0;	
+volatile u16 vGu32TimeCnt_1 = 0;	
 
 #define LED_TIME_1S  1000  //时间是 10000ms
+#define LED_TIME_05S 500
 /*-----------------自定义时间区域---------------------*/
-#define RIGHT_LED_TIME 15
-#define FRONT_LED_TIME 25
-#define LEFT_LED_TIME 35	
-#define LowTimeS 5
+#define RIGHT_LED_TIME 16
+#define FRONT_LED_TIME 26
+#define LEFT_LED_TIME  36	
+#define LowTimeS 6
 /*----------------------------------------------------*/
 volatile unsigned int g_count = LEFT_LED_TIME ;
 volatile unsigned int y_count = FRONT_LED_TIME;
@@ -94,10 +95,13 @@ void timer0_init(void)
 void stc15x_hw_init(void)
 {
 	P0n_standard(0xff);	//设置为准双向口
-	//P1n_standard(0xff);	//设置为准双向口
+	P1n_standard(0xff);	//设置为准双向口
 	P2n_standard(0xff);//设置为准双向口
-	P1n_push_pull(0xff);//设置为强推挽
-	P3n_push_pull(0xc8);//设置为强推挽
+	//P0n_push_pull(0xff);//设置为强推挽
+	//P2n_push_pull(0xff);//设置为强推挽
+	//P1n_push_pull(0xff);//设置为强推挽
+	P3n_push_pull(0xc8);
+	//P3n_push_pull(0xff);//设置为强推挽
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
 	timer0_init();
@@ -142,19 +146,16 @@ void TaskDisplayScan(void)//10ms 刷新一次
 		P_COM2 = 0;
 		return;
 	}
-	for(display_index = 0;display_index < INDEX_MAX;display_index++){
+	//for(display_index = 0;display_index < INDEX_MAX;display_index++)
 		BitX_Set(ON,display_index);//com 口扫描，点亮该位
 #if 0
-	_nop_();
-	_nop_();
+	//_nop_();
+	//_nop_();
+	//delay_ms(2);
 	BitX_Set(OFF,display_index);//改变亮度
 #endif	
-		if(LowTime)
-		{
-			;//闪烁设置
-		}
 		P_COM0=P_COM1=P_COM2=0;//显示段码前先关闭位码消影;
-		_nop_();
+		//_nop_();
 		//段码显示，交通灯显示
 		LED8_A = getbit(LED8[display_index],0);
 		LED8_B = getbit(LED8[display_index],1);
@@ -168,7 +169,9 @@ void TaskDisplayScan(void)//10ms 刷新一次
 		P_COM0 = getbit(Display_Code[0],0);
 		P_COM1 = getbit(Display_Code[0],1);
 		P_COM2 = getbit(Display_Code[0],2);
-	}
+		display_index++;
+	if(display_index >= INDEX_MAX)
+		display_index = 0;
 }
 void Traffic_Led(void)
 {
@@ -178,53 +181,69 @@ void Traffic_Led(void)
 			vGu8TimeFlag_1 = 1;
 			LED8[2] = LEFT_LED_CODE;
 			r_count = RIGHT_LED_TIME;
-			LED8[0] = t_display[mod(g_count,10)];
-			LED8[1] = t_display[rem(g_count,10)];
-			if(g_count<=LowTimeS)
-				LowTime = TRUE;
+			LED8[0] = t_display[mod((g_count-1),10)];
+			LED8[1] = t_display[rem((g_count-1),10)];
+			if(g_count<=LowTimeS){
+				if(vGu32TimeCnt_1<= LED_TIME_05S)
+					FlashFlag = TRUE;	
+				else
+					FlashFlag = FALSE;
+			}
 			else
-				LowTime = FALSE;
+					FlashFlag = FALSE;
 			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
 				g_count--;
 				vGu32TimeCnt_1 = 0;
 				if(g_count == 0)
+				{
 					Gu8Step++;
+				}
 			}	
 			break;
 		case 1://向前,25s
 			g_count = LEFT_LED_TIME;
 			LED8[2] = FRONT_LED_CODE;
-			LED8[0] = t_display[mod(y_count,10)];
-			LED8[1] = t_display[rem(y_count,10)];	
-			if(y_count<=LowTimeS)
-				LowTime = TRUE;
+			LED8[0] = t_display[mod((y_count-1),10)];
+			LED8[1] = t_display[rem((y_count-1),10)];	
+			if(y_count<=LowTimeS){
+				if(vGu32TimeCnt_1<= LED_TIME_05S)
+					FlashFlag = TRUE;	
+				else
+					FlashFlag = FALSE;
+			}
 			else
-				LowTime = FALSE;
+					FlashFlag = FALSE;
 			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
 				y_count--;	
 				vGu32TimeCnt_1 = 0;
 				if(y_count == 0)
+				{
 					Gu8Step++;
+				}
 			}
 			break;
 		case 2://向右,15s
 			y_count = FRONT_LED_TIME;
 			LED8[2] = RIGHT_LED_CODE;
-			LED8[0] = t_display[mod(r_count,10)];
-			LED8[1] = t_display[rem(r_count,10)];	
-			if(r_count<=LowTimeS)
-				LowTime = TRUE;
+			LED8[0] = t_display[mod((r_count-1),10)];
+			LED8[1] = t_display[rem((r_count-1),10)];	
+			if(r_count<=LowTimeS){
+				if(vGu32TimeCnt_1<= LED_TIME_05S)
+					FlashFlag = TRUE;	
+				else
+					FlashFlag = FALSE;
+			}
 			else
-				LowTime = FALSE;
+					FlashFlag = FALSE;
 			if(vGu32TimeCnt_1>=LED_TIME_1S)
 			{
 				r_count--;		
 				vGu32TimeCnt_1 = 0;
 				if(r_count == 0)
 				{
-					Gu8Step=0;		
+					Gu8Step=0;
 					vGu32TimeCnt_1 = 0;
 					vGu8TimeFlag_1 = 0;
 				}
@@ -240,7 +259,7 @@ void main(void)
 	while(1)
 	{
 		Traffic_Led();//指示灯状态切换	
-		TaskDisplayScan();
+		//TaskDisplayScan();
 	}
 }
 //========================================================================
@@ -248,6 +267,7 @@ void main(void)
 //========================================================================
 void timer0 (void) interrupt TIMER0_VECTOR
 {
+	TaskDisplayScan();
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
 	}
