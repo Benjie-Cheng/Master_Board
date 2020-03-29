@@ -2,19 +2,17 @@
 #define __LED_LIB_H_
 #include "system.h"
 
-//#define nWs 250
-
-#define WS2811_SDA_GPIO	 P35
+#define WS2811_SDA_GPIO	 P34
 #define WS2811_SDA1_GPIO P35
 #define HZ_35000000 1
-//#define HZ_12000000 1
-//#define HZ_11059200 1
+
 #define BLUE  1
 #define RED   2
 #define GREEN 3
 #define WHITE 0
-extern u8  nWs;
-extern void DelayMS(u16 t);
+//extern u8  nWs;
+//extern void DelayMS(u16 t);
+
 void WS2811_SendByte(u8 dat);		//@高位先传
 void WS2811_Reset(void);        //@复位芯片
 void Clear_WS2811(void);        //@清0函数

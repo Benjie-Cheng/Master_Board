@@ -19,7 +19,7 @@
 
 #include	"STC15Fxxxx.H"
 //#include "config.h"
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>           // 加入此头文件后,可使用strstr库函数
 

@@ -5,7 +5,7 @@
 #define LED_DEBUG
 #if defined LED_DEBUG
 #include "system.h"
-#define  P_TXD P33;	//定义模拟串口发送端,可以是任意IO
+#define  P_TXD P33	//定义模拟串口发送端,可以是任意IO
 
 
 

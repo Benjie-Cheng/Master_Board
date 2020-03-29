@@ -31,6 +31,7 @@
 */
 //#include <rtx51tny.h>                 /* RTX-51 tiny functions & defines      */
 #include "system.h"
+#include "led_lib.h"
 #include "eeprom.h"
 
 #define SysTick 10   //10ms
@@ -62,7 +63,7 @@ data2：运行速度
 void print_string(u8 *puts);
 void puts_to_SerialPort(u8 *puts);
 void print_char(u8 dat);
-void printf(u8 *puts,u8 num1);
+void printss(u8 *puts,u8 num1);
 void Sys_init (void)  {
 	/*104S-SOP8 只有P3*/
 	//P0n_standard(0xff);	//设置为准双向口
@@ -124,7 +125,7 @@ void Gpio_KeyScan(u8 *KeyVal)
 	
 	//*KeyVal = (u8)value;
 	if(Key_EventProtect)
-		return 0;
+		return ;
     //【速度】按键的扫描识别
 	if(0!=SPEED_GPIO)
 	{
@@ -145,7 +146,7 @@ void Gpio_KeyScan(u8 *KeyVal)
 			{
 				Key_EventProtect = TRUE;
 				Su8KeyLock1 = 2;
-				return 0;
+				return;
 			}
 		}
 	}
@@ -178,13 +179,13 @@ void Gpio_KeyScan(u8 *KeyVal)
 		if(Su8KeyCnt2>=KEY_FILTER_TIME)
 		{
 			Su8KeyLock2=1;  
-			Su8KeyCnt2=0；
-			*KeyVal = (u8)KeyRunMode    //触发1号键
+			Su8KeyCnt2=0;
+			*KeyVal = (u8)KeyRunMode;    //触发1号键
 			if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
 			{
 				Key_EventProtect = TRUE;
 				Su8KeyLock2 =2;
-				return 0;
+				return ;
 			}
 		}
 	}
@@ -222,7 +223,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 	Gpio_KeyScan(&KeyCode);
 	if(!KeyCode){
 		LedFlash = TRUE;//有按键按下需要闪烁一次LED提示
-		printf("KeyScan task:",KeyCode);
+		printss("KeyScan task:",KeyCode);
 	}
 	switch(KeyCode)
 	{
@@ -233,7 +234,7 @@ void TaskDisplayScan(void)//10ms 刷新一次
 				//LED++
 				SysRun.LedNum++;
 				SysRun.LedNum = is_max(1,254,SysRun.LedNum);//大于最大恢复最小
-				printf("LED num:",SysRun.LedNum);
+				printss("LED num:",SysRun.LedNum);
 			}
 			else
 			{
@@ -250,13 +251,13 @@ void TaskDisplayScan(void)//10ms 刷新一次
 				//LED--
 				SysRun.LedNum--;
 				SysRun.LedNum = is_min(1,255,SysRun.LedNum);//小于最小恢复最大
-				printf("LED num:",SysRun.LedNum);
+				printss("LED num:",SysRun.LedNum);
 			}
 			else
 			{
 				//Mode++;
 				SysRun.LedMode++;
-				is_max(0,10,SysRun.LedMode);		//大于最大恢复最小
+				SysRun.LedMode = is_max(0,10,SysRun.LedMode);		//大于最大恢复最小
 				
 			}
 			E2promErase = TRUE;//需要存储
@@ -344,35 +345,46 @@ void puts_to_SerialPort(u8 *puts)
 		while(B_TX1_Busy);
 	}
 }
-void printf(u8 *puts,u8 num1)
+void printss(u8 *puts,u8 num1)
 {
 	u8 temp;
-	temp = rem(num1,100)
+	temp = rem(num1,100);
 	print_string(puts);
 	print_char(mod(num1,100)+0x30);
 	print_char(mod(temp,10)+0x30);
 	print_char(rem(temp,10)+0x30);
 	print_char('\n');
-
+}
+/*******************************************************************************
+* 初始化数据
+*******************************************************************************/
+static void InitData(void)
+{
+	
 }
 /******************************************************************************/
 /*       Task 0 'job0':  RTX-51 tiny starts execution with task 0             */
 /******************************************************************************/
-void init (void) _task_ INIT_0{      
-	Sys_init();	
-	Clear_WS2811();//初始化WS2811
-	uart1_config();
-	puts_to_SerialPort("I AM SLC104S_M3!\n");
-	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
-	SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//获取led路数
-	SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
-	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//获取运行速度
-	os_create_task (DISPLAY);                   /* start task 1                         */
-	os_create_task (KEY_SCAN_1);                /* start task 2                         */
-	os_create_task (KEY_DONE_2);                /* start task 3                         */
-	os_create_task (LIGHTS_3);                  /* start task 4                         */
-	os_delete_task (INIT_0);
+
+void init (void) _task_ INIT_0{  	
+		Sys_init();	
+		Clear_WS2811();//初始化WS2811
+		uart1_config();
+		puts_to_SerialPort("I AM SLC104S_M3!\n");
+		EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
+		SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//获取led路数
+		SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
+		SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//获取运行速度
+		os_create_task (DISPLAY);                   
+		os_create_task (KEY_SCAN_1);                
+		os_create_task (KEY_DONE_2);                
+		os_create_task (LIGHTS_3);                  
+		os_delete_task (INIT_0);
+
+	os_create_task (KEY_SCAN_1);
+	os_delete_task (INIT_0);	
 }
+
 
 /******************************************************************************/
 /*    Task 1 'job1':  RTX-51 tiny starts this task with os_create_task (1)    */

@@ -20,10 +20,7 @@
 
 #include	"STC15Fxxxx.H"
 #include <rtx51tny.h>                 /* RTX-51 tiny functions & defines      */
-//#include "config.h"
-//#include "hc595.h"
-#include "led_lib.h"
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>           // 加入此头文件后,可使用strstr库函数
 
@@ -87,24 +84,28 @@ typedef   unsigned int  WORD;
 #define MAX              16           //随机数最大值
 #define MIN              1            //随机数最小值
 #define creat_random() (rand() % (MAX + 1 - MIN)+ MIN)      //产生随机数，用于数据加密
-#define is_max(left, right, value) val>right ? left : val
-#define is_min(left, right, value) val<left ? right : val
+#define is_max(left, right, value) value>right ? left : value
+#define is_min(left, right, value) value<left ? right : value
 //---------------define by project-----------------//
-typedef enum {
-	INIT_0=0,                          /* task number of task:  init           */
-	KEY_SCAN_1,						   /* task number of task:  keyscan        */
-	KEY_DONE_2,                        /* task number of task:  keydone        */
-	LIGHTS_3                           /* task number of task:  lights         */
-	
-}SysTask;
+#define INIT_0 0
+#define KEY_SCAN_1 1
+#define KEY_DONE_2 2
+#define LIGHTS_3 3
+#define DISPLAY 4
+
+//typedef enum {
+//	INIT_0,                          /* task number of task:  init           */
+//	KEY_SCAN_1,						   /* task number of task:  keyscan        */
+//	KEY_DONE_2,                        /* task number of task:  keydone        */
+//	LIGHTS_3,                          /* task number of task:  lights         */
+//	DISPLAY,
+//};//SysTask;
+
 typedef enum {
 	KeyNull=0,
 	KeySpeed=1,
 	KeyRunMode,
-	KeySpeedLong,
-	KeyRunModeLong
-	KeyLedNum,
-	KeyBright
+	KeyLedNum
 }KeyEnum;
 
 	#define LED_MAX     99  //最大值
@@ -122,7 +123,7 @@ typedef enum {
 typedef enum {
 	LED_NUM_CFG=0,
 	RUN_MODE_CFG,
-	SPEED_CFG
+	SPEED_CFG,
 	MAX_CFG
 /*
 data0：通时间
@@ -137,13 +138,14 @@ enum Run_Mode{
 	RUN_MODE
 };
 typedef struct{
-	u8 Step=0;   //运行步骤,switch 切换
+	u8 Step;   //运行步骤,switch 切换
 	u8 Mode;   //运行模式 switch 切换，掉电需要记录到EEPROM中
 	u8 LedMode;
 	u8 LedNum;
 	u8 LedSpeed;
 }SysRunStruct;
-SysRunStruct SysRun;
+extern SysRunStruct SysRun;
+//SysRunStruct SysRun;
 #define SPEED_GPIO P30
 #define MODE_GPIO  P31
 #define NLED_GPIO  P34

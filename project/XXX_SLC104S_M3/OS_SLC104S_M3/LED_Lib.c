@@ -13,7 +13,7 @@
 	else if(GREEN==TYPE){GREEN_LIGHT(BL);}\
 	else if(WHITE==TYPE){WHITE_LIGHT(BL);}}
 
-u8  nWs = 1;
+//extern   SysRun.LedNum = 1;
 #ifdef HZ_11059200
 void Delay1us()		//@11.0592MHz
 {
@@ -134,7 +134,7 @@ void Clear_WS2811(void)
 {
 	u16 i=0;
 	
-	for(i=0;i<(nWs+300);i++){
+	for(i=0;i<(SysRun.LedNum+300);i++){
 		WS2811_SendByte(0);
 		Delay1us();
 		Delay1us();
@@ -147,11 +147,11 @@ int LED_SPEED = 50;
 void liushui123x(BOOL RL,u16 led_num)// 顺序三路单灯流水
 {
 	u8 n,i,num;
-  for(i=0;i<nWs;i++)  //RGB_count+8
+  for(i=0;i<SysRun.LedNum;i++)  //RGB_count+8
 	{   
 		if(RL)//RL = 1 由1->3
 		{
-			for(n=nWs;n>0;n--)
+			for(n=SysRun.LedNum;n>0;n--)
 			{		
 					WS2811_SendByte(num=((i+2)%3)?0:200); 
 					WS2811_SendByte(num=((i+1)%3)?0:200);
@@ -203,13 +203,13 @@ void PAOMA(u8 GG1,u8 GG2)//
 void PAOMAADD(u8 TYPE,u16 GG1,u16 GG2)//单色单灯叠加亮，底色单灯叠加灭
 { 										  
 	u8 i,num;
-	for(i=0;i<nWs;i++)		 //RGB_count
+	for(i=0;i<SysRun.LedNum;i++)		 //RGB_count
 	{
 		for(num=0;num<=i;num++)
 		{
 			LED_SET(TYPE,GG1);
 		}
-		for(num=nWs-i;num>0;num--)  //RGB_count
+		for(num=SysRun.LedNum-i;num>0;num--)  //RGB_count
 		{
 			//WS2811_SendByte(GG2);
 			LED_SET(TYPE,GG2);
@@ -222,7 +222,7 @@ void PAOMAADD(u8 TYPE,u16 GG1,u16 GG2)//单色单灯叠加亮，底色单灯叠加灭
 void PAOMADEC(u8 GG1,u8 GG2)//单色单灯减灭，底色单灯减灭
 {
 	u8 i,num;//,RGB_count=RGB_c; 
-	for(i=nWs;i>0;i--)	//RGB_count+8
+	for(i=SysRun.LedNum;i>0;i--)	//RGB_count+8
 	{						 
 		for(num=0;num<=i;num++)
 		{
@@ -230,7 +230,7 @@ void PAOMADEC(u8 GG1,u8 GG2)//单色单灯减灭，底色单灯减灭
 //    WS2811_SendByte(RR1);
 //    WS2811_SendByte(BB1);
     }
-    for(num=nWs-i;num>0;num--)	//RGB_count+8
+    for(num=SysRun.LedNum-i;num>0;num--)	//RGB_count+8
     {
 			WS2811_SendByte(GG2);
 //    WS2811_SendByte(RR2);
@@ -243,7 +243,7 @@ void PAOMADEC(u8 GG1,u8 GG2)//单色单灯减灭，底色单灯减灭
 void LIUXINGYU32(bit bG)//32灯拖尾变暗流水
 {
 	u16 nn,ii,nnum,NLed;
-	NLed=nWs+10;
+	NLed=SysRun.LedNum+10;
  	for(ii=0;ii<NLed*3;ii++)
   {   
 		if(ii>31)//
@@ -280,7 +280,7 @@ void LIUXINGYU16(u8 GG1,bit bG)//16灯拖尾变暗流水
 {
 	//u8 n,i,num;
 	u16 n,i,num,NLed;
-	NLed=nWs+10;
+	NLed=SysRun.LedNum+10;
   for(i=0;i<NLed*3;i++)
 	{   
 		if(i>15)
@@ -347,7 +347,7 @@ void LIUXINGYU8(u8 GG1,bit bG)//顺序8路RGB拖尾+RGB补色
 {
 	//u8 n,i,t,num;//,RGB_count=RGB_c;
 	u16 n,i,num,NLed;
-	NLed=nWs+20;
+	NLed=SysRun.LedNum+20;
   for(i=0;i<NLed*3+8;i++)
 	{   
 		if(i>7)
@@ -388,7 +388,7 @@ void LIUXINGYU88(bit bG,bit bG1)// ???16???8?RGB??
 	{
 		for(i=1;i<=8;i++)
 		{  
-			for(t=0;t<(nWs*+1);t++)
+			for(t=0;t<(SysRun.LedNum*+1);t++)
 			{
 				for(n=i;n>0;n--)
 				{
@@ -447,13 +447,13 @@ u8 code b_DataTable[63] =
 void quancaipiao(void)
 {
   u8 nn,i;
-  u8  step_num = nWs;
+  u8  step_num = SysRun.LedNum;
 
   u8 temp_memeory[3] = {0, 0, 0};
   
   while(1)
   {
-		for(i = 0; i <nWs; i++)
+		for(i = 0; i <SysRun.LedNum; i++)
 		{ 
 			if(step_num < i)
 			{
@@ -552,7 +552,7 @@ void DDPADD4(void)				//?????????
 		for(i = 0; i <step_num; i++)
 		{ 
 
-			for(iii=nWs;iii>0;iii--)
+			for(iii=SysRun.LedNum;iii>0;iii--)
 				{	
 					//WS2811_SendByte(0);
 					//WS2811_SendByte(0);
@@ -568,7 +568,7 @@ void DDPADD4(void)				//?????????
 		}	  
 		for(i = 0; i <step_num; i++)
 		{ 
-			for(iii=0;iii<nWs;iii++)
+			for(iii=0;iii<SysRun.LedNum;iii++)
 			{	
 //					send_dat(0);
 //					send_dat(0);
@@ -596,7 +596,7 @@ void DDPADD5(void)				//?????????
   {
 		for(i = 0; i <step_num; i++)
 		{ 
-			for(iii=nWs*3;iii>0;iii--)
+			for(iii=SysRun.LedNum*3;iii>0;iii--)
 			{	
 //					send_dat(0);
 //					send_dat(0);
@@ -626,7 +626,7 @@ void ChangeHigh(bit GG1,bit RR1,bit BB1) //纯色渐亮
 	u8 n,i,num;//RGB_count=RGB_c;
 	for(i=0;i<250;i++)//brightness
 	{
-		for(n=0;n<nWs;n++)//RGB_count
+		for(n=0;n<SysRun.LedNum;n++)//RGB_count
 		{
 			WS2811_SendByte(num=GG1?i:0);
 			WS2811_SendByte(num=RR1?i:0);
@@ -645,7 +645,7 @@ void ChangeLose(bit GG1,bit RR1,bit BB1)	//纯色渐暗
 	u8 n,i,num;//,RGB_count=RGB_c;
 	for(i=250;i>0;i--)
 	{
-		for(n=nWs;n>0;n--)
+		for(n=SysRun.LedNum;n>0;n--)
 		{
 			WS2811_SendByte(num=GG1?i:0);
 	    WS2811_SendByte(num=RR1?i:0);
