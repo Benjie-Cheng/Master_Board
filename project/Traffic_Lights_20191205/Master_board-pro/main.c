@@ -36,14 +36,17 @@ volatile unsigned int y_count = FRONT_LED_TIME;
 volatile unsigned int r_count = RIGHT_LED_TIME;
 BOOL FlashFlag = FALSE;
 BOOL LowTime = FALSE;
-#define LEFT_LED_CODE  0x34
-#define FRONT_LED_CODE 0x07
-#define RIGHT_LED_CODE 0x1A
+//#define LEFT_LED_CODE  0x34
+//#define FRONT_LED_CODE 0x07
+//#define RIGHT_LED_CODE 0x1A
+#define LEFT_LED_CODE  0x0b
+#define FRONT_LED_CODE 0x38
+#define RIGHT_LED_CODE 0x25
 static u8 Gu8Step = 0; //软件定时器 1 的 switch 切换步骤
 
 #define	INDEX_MAX 3	//显示位索引
 static u8 	Display_Code[1]={0x00};		    //1：com 口状态;
-static u8 	LED8[3] = {0x00,0x00,0xff};		//显示缓冲支持2位,十位、个位,LED状态。
+static u8 	LED8[INDEX_MAX] = {0x00,0x00,0xff};		//显示缓冲支持2位,十位、个位,LED状态。
 static u8	display_index = 0;				//显示位索引
 /*************	IO定义	**************/
 sbit	LED8_A = P1^1;
@@ -94,6 +97,7 @@ void timer0_init(void)
 }	
 void stc15x_hw_init(void)
 {
+/*
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
 	P2n_standard(0xff);//设置为准双向口
@@ -104,6 +108,13 @@ void stc15x_hw_init(void)
 	//P3n_push_pull(0xff);//设置为强推挽
 	P4n_standard(0xff);	//设置为准双向口
 	P5n_standard(0xff);	//设置为准双向口	
+*/
+	P0n_push_pull(0xff);
+	P1n_push_pull(0xff);
+	P2n_push_pull(0xff);
+	P3n_push_pull(0xff);
+	P4n_push_pull(0xff);
+	P5n_push_pull(0xff);
 	timer0_init();
 }
 void Kled_Set(LogicType type,u8 Nled)//LED设置

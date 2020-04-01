@@ -640,6 +640,9 @@ int Get_Pt2272State(void)
 		else 
 			val = 0;
 	}
+	if(val == 0x0D)
+		val = 0;//解决无遥控时按键无法工作
+	//print_char(val);
 	return val;
 }
 int Get_KeyVal(void)
@@ -761,7 +764,7 @@ void main(void)
 	vDataIn595(0xff);
 	vDataIn595(0xff);
 	vDataOut595();	//开机默认关闭通道显示LED
-	puts_to_SerialPort("I am MC204S_K8!\n");
+	puts_to_SerialPort("I am Dual Timer_Controller_v2.1 !\n");
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,E2PROM_LENGTH);
 	SetTime.on  = RunTime.on = E2PROM_Strings[0];
 	SetTime.off = RunTime.off = E2PROM_Strings[1];
@@ -776,7 +779,7 @@ void main(void)
 	TM1650_Set(DIG2,t_display[1]);
 	TM1650_Set(DIG3,t_display[2]);
 	TM1650_Set(DIG4,t_display[3]);
-
+	WDT_reset(D_WDT_SCALE_128);
 	while(1)
 	{
 		if(B_1ms)	//1ms到
@@ -798,9 +801,14 @@ void main(void)
 //========================================================================
 void timer0 (void) interrupt TIMER0_VECTOR
 {
+	static volatile u8 count=0;
 	B_1ms = 1;		//1ms标志
-	//KeyScan();
 	TaskRemarks();
+	count++;
+	if(count>=10){
+		WDT_reset(D_WDT_SCALE_128);
+		count = 0 ;
+	}
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
 	}

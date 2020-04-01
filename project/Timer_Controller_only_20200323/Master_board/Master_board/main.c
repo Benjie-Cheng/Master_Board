@@ -226,6 +226,8 @@ void stc15x_hw_init(void)
 {
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
+	//P1n_pure_input(0x03);
+	//P3n_pure_input(0xc0);
 	P2n_push_pull(0xff);	//设置为准双向口
 	P3n_standard(0xff);	//设置为准双向口
 	P4n_standard(0xff);	//设置为准双向口
@@ -234,6 +236,10 @@ void stc15x_hw_init(void)
 	timer0_init();
 	uart1_config();
 	A_HC595_MR = 1;     //复位禁止
+	//PT2272_D0 = 0;
+	//PT2272_D1 = 0;
+	//PT2272_D2 = 0;
+	//PT2272_D3 = 0;
 }
 /**************** 向HC595发送一个字节函数 ******************/
 void vDataIn595(u8 dat)
@@ -509,7 +515,7 @@ void KeyProcess(KeyEnum key)
 			key=KeyNull; 
 			if(--Brightness<BLMIM)
 				Brightness = 8; 
-			//Tube_CMD(P7_MODE,Brightness);
+			Tube_CMD(P7_MODE,Brightness);
 			
 			break;
 		case KeySetMode:     //【设置模式】
@@ -642,6 +648,7 @@ int Get_Pt2272State(void)
 	for(i=0;i<15;i++)
 	{
 		val = m+j+k+l;
+		
 		if(val == pt2272[i]) 
 		{
 			val = i+1;
@@ -650,7 +657,9 @@ int Get_Pt2272State(void)
 		else 
 			val = 0;
 	}
-//print_char(val);
+  //print_char(val);
+	if(val == 0x0d)//解决拔掉遥控器GPIO全为高不能使用的问题。
+		val = 0;
 	return val;
 }
 int Get_KeyVal(void)
@@ -668,6 +677,7 @@ int Get_KeyVal(void)
 if( Support_Pt2272){
 	
 	Key_Code = Get_Pt2272State();
+	//print_char(Key_Code);
 	if(!Key_Code)//如果为0则未触发
 	{ 
 		Su8KeyLock2=0;
@@ -787,7 +797,7 @@ void main(void)
 	TM1650_Set(DIG2,t_display[1]);
 	TM1650_Set(DIG3,t_display[2]);
 	TM1650_Set(DIG4,t_display[3]);
-
+	WDT_reset(D_WDT_SCALE_128);
 	while(1)
 	{
 		if(B_1ms)	//1ms到
@@ -809,9 +819,14 @@ void main(void)
 //========================================================================
 void timer0 (void) interrupt TIMER0_VECTOR
 {
+	static volatile u8 count=0;
 	B_1ms = 1;		//1ms标志
-	//KeyScan();
 	TaskRemarks();
+	count++;
+	if(count>=10){
+		WDT_reset(D_WDT_SCALE_128);
+		count = 0 ;
+	}
 	if(vGu8TimeFlag_1){
 		vGu32TimeCnt_1++;
 	}
