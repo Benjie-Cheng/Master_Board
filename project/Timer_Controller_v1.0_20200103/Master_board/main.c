@@ -750,6 +750,16 @@ void InitData(void)
 {
 	SysRun.Mode = DUAL_MINU_MODE;
 }
+//-----------全球唯一ID读取--------------//
+#define ID_ADDR_ROM 0x0ff9
+void Send_Self_Id(BYTE code *cptr)
+{
+	u8 i= 0;
+	for (i=0; i<7; i++)          //读7个字节
+    {
+        print_char(*cptr++);      //发送ID到串口
+    }
+}
 //========================================================================
 // 函数: void main(void)
 // 描述: 主程序.
@@ -757,6 +767,7 @@ void InitData(void)
 // 返回: 无.
 // 版本: V1.0, 2012-10-22
 //========================================================================
+
 void main(void)
 {
 	InitData();
@@ -780,6 +791,7 @@ void main(void)
 	TM1650_Set(DIG3,t_display[2]);
 	TM1650_Set(DIG4,t_display[3]);
 	WDT_reset(D_WDT_SCALE_128);
+	Send_Self_Id(ID_ADDR_ROM);
 	while(1)
 	{
 		if(B_1ms)	//1ms到
