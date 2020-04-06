@@ -353,11 +353,11 @@ void vTaskfFlashLed(void)
 { 
 	if(!E2promDis)
 	{
-		LedX_Set(OFF,RunModeBit);//正常运行时设置灯关闭;	
+		LedX_Set(OFF,SetModeBit);//正常运行时设置灯关闭;	
 		return;
 	}	
 	if(LedFlash)
-		LedX_Set(OFF_ON,RunModeBit);//设置灯闪烁;	
+		LedX_Set(OFF_ON,SetModeBit);//设置灯闪烁;	
 		//key_led_reverse();
 	//print_char(vGu8KeySec);//打印按键值
 	//puts_to_SerialPort(E2PROM_Strings);
@@ -581,7 +581,7 @@ void Channle_Sw(void)
 		case TURN_ON_MODE://导通倒计时
 			vGu8TimeFlag_1 = 1;
 			ComX_Set(ON,OUT2); //【OUT2】开;
-			ComX_Set(OFF,OUT1);//【OUT1】关;
+			ComX_Set(ON,OUT1);//【OUT1】开;
 			Com_Match(ON,Display_Code[2]);//使能者运行
 			if(vGu32TimeCnt_1>=RunTime.tMode)
 			{
@@ -598,7 +598,7 @@ void Channle_Sw(void)
 			break;
 		case TURN_OFF_MODE://关断倒计时
 			vGu8TimeFlag_1 = 1;
-			ComX_Set(ON,OUT1); //【OUT1】开;
+			ComX_Set(OFF,OUT1); //【OUT1】开;
 			ComX_Set(OFF,OUT2);//【OUT2】关;
 			Com_Match(OFF,Display_Code[2]);//使能者运行
 			if(vGu32TimeCnt_1>=RunTime.tMode)

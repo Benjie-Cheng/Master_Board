@@ -119,7 +119,7 @@ typedef enum {
 	DualMinBit=2,
 	DualSecBit=4,
 	OnlyMinBit=3,
-	SetModeBit=5,
+	SetModeBit=1,
 	RunModeBit=0
 }LedBit;
 typedef enum {
