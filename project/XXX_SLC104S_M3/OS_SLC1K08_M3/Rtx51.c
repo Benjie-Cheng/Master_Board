@@ -219,7 +219,7 @@ void vEepromUpdate(void)
 	os_wait2 (K_SIG|K_TMO, 1);	
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
 	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG];//获取led路数
-	SysRun.LedMode  = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
+	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//获取运行速度
 	E2promErase = FALSE;
 }
@@ -341,7 +341,7 @@ void init (void) _task_ INIT_0{
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
 	/*路数：3，模式：1，速度：10*/
 	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG]; //获取led路数
-	SysRun.LedMode  = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
+	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];   //获取运行速度
 	os_create_task (DISPLAY);                   
 	os_create_task (KEY_SCAN_1);                               
@@ -433,7 +433,7 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 				KeyCode = KeyNull;
 			}
 		E2PROM_Strings[LED_NUM_CFG]  = SysRun.LedNum;  //获取led路数
-		E2PROM_Strings[RUN_MODE_CFG] = SysRun.LedMode; //获取运行模式
+		E2PROM_Strings[RUN_TYPE_CFG] = SysRun.LedMode; //获取运行模式
 		E2PROM_Strings[SPEED_CFG]    = SysRun.LedSpeed;//获取运行速度
 		vEepromUpdate();
 		Key_EventProtect = FALSE;//防止键值未处理时又触发新按键	
@@ -445,37 +445,37 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 /******************************************************************************/
 void WS2811_LedTaks (void) _task_ LIGHTS_2{
   while (1)  {                        /* endless loop                         */
-	witch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
-	
-		case SET_LINE://设置模式
-			TurnOn(SysRun.LedNum,0);
-			break;
-		case Mode1:
+	switch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
+		{
+			case SET_LINE://设置模式
+				TurnOn(SysRun.LedNum,0);
+				break;
+			case Mode1:
+				liushui123(SysRun.LedNum,1);
+				//ChangeHigh(SysRun.LedNum,1);
+				//ChangeLose(SysRun.LedNum,1);
+				break;
+			case Mode2:
+				ChangeHigh(SysRun.LedNum,0);
+				ChangeLose(SysRun.LedNum,0);
+				break;
+			case Mode3:
+				BreathingAdd_Two(SysRun.LedNum);
+			//	liushui123(SysRun.LedNum);
+			//liushui123(SysRun.LedNum,1);
 			liushui123(SysRun.LedNum,1);
-			//ChangeHigh(SysRun.LedNum,1);
-			//ChangeLose(SysRun.LedNum,1);
-			break;
-		case Mode2:
-			ChangeHigh(SysRun.LedNum,0);
-			ChangeLose(SysRun.LedNum,0);
-			break;
-		case Mode3:
-			BreathingAdd_Two(SysRun.LedNum);
-		//	liushui123(SysRun.LedNum);
-		//liushui123(SysRun.LedNum,1);
-		liushui123(SysRun.LedNum,1);
-			//liushui(SysRun.LedNum,0);
-		//  liushui(SysRun.LedNum,1);
-			//BreathingDel_Two(SysRun.LedNum);
-		  //BreathingAdd_Two(SysRun.LedNum);
-			break;
-		case Mode4:
-			break;
-		default:
-			TurnOn(SysRun.LedNum,0);
-			break;		
+				//liushui(SysRun.LedNum,0);
+			//  liushui(SysRun.LedNum,1);
+				//BreathingDel_Two(SysRun.LedNum);
+				//BreathingAdd_Two(SysRun.LedNum);
+				break;
+			case Mode4:
+				break;
+			default:
+				TurnOn(SysRun.LedNum,0);
+				break;	
+			}		
 	}
-  }
 }
 //========================================================================
 // 函数: void uart1_int (void) interrupt UART1_VECTOR

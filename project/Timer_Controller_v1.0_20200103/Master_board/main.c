@@ -711,7 +711,7 @@ if( Support_Pt2272){
 		else 
 			val = 0;
 	}
-	
+	//print_char(val);
 	if(val==0){
 		Su8KeyLock1=0;
 		Su16KeyCnt1=0; 

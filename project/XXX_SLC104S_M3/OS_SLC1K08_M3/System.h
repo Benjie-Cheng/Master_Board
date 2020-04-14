@@ -109,9 +109,9 @@ enum {
 	LED_NUM_MIN  = 1,
 	LED_NUM_MAX  = 255,
 	LED_NUM_STEP = 1,
-	LED_TYPE_MIN  = 0
+	LED_TYPE_MIN  = 0,
 	LED_TYPE_MAX  = 10,
-	LED_TYPE_STEP = 1
+	LED_TYPE_STEP = 1,
 };
 
 #define MAX_BL 150
@@ -145,10 +145,10 @@ typedef enum {
 	KeyLedNum
 }KeyEnum;
 
-	#define LED_MAX     99  //最大值
-	#define LED_MIN     1   //最小值
-	#define SPEEDMAX    10  //速度最大
-	#define SPEEDMIN    1   //速度最小
+	//#define LED_MAX     99  //最大值
+	//#define LED_MIN     1   //最小值
+	//#define SPEEDMAX    10  //速度最大
+	//#define SPEEDMIN    1   //速度最小
 
 typedef enum {
 	ON       =0x01,
