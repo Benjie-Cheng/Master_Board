@@ -88,12 +88,13 @@ typedef   unsigned int  WORD;
 #define creat_random() (rand() % (MAX + 1 - MIN)+ MIN)      //产生随机数，用于数据加密
 #define is_max(left, right, value) value>right ? left : value
 #define is_min(left, right, value) value<left ? right : value
+
 //---------------define by project-----------------//
 #define INIT_0 0
 #define KEY_SCAN_1 1
-#define KEY_DONE_2 2
-#define LIGHTS_3 3
-#define DISPLAY 4
+//#define KEY_DONE_2 2
+#define LIGHTS_2 2
+#define DISPLAY 3
 
 #define LOG_LEVEL 1
 typedef enum {
@@ -101,6 +102,17 @@ typedef enum {
 	DEBUG,
 	ERR
 }LogLevel;
+enum {
+	SPEED_MIN  =1,
+	SPEED_MAX  =20,
+	SPEED_STEP =2,
+	LED_NUM_MIN  = 1,
+	LED_NUM_MAX  = 255,
+	LED_NUM_STEP = 1,
+	LED_TYPE_MIN  = 0
+	LED_TYPE_MAX  = 10,
+	LED_TYPE_STEP = 1
+};
 
 #define MAX_BL 150
 #define MIN_BL 2
@@ -147,15 +159,15 @@ typedef enum {
 }LogicType;
 typedef enum {
 	LED_NUM_CFG=0,
-	RUN_MODE_CFG,
+	RUN_TYPE_CFG,
 	SPEED_CFG,
 	MAX_CFG
 /*
-data0：通时间
-data1：关时间
-data2：运行模式
-data3:支持PT2272
-data4:端口支持数据
+data0：路数
+data1：模式
+data2：速度
+data3:
+data4:
 */
 }E2promCfg;
 enum Run_Mode{
@@ -164,8 +176,8 @@ enum Run_Mode{
 };
 typedef struct{
 	u8 Step;   //运行步骤,switch 切换
-	u8 Mode;   //运行模式 switch 切换，掉电需要记录到EEPROM中
-	u8 LedMode;
+	u8 Mode;   //运行和设置两种状态
+	u8 LedMode;//花样模式
 	u8 LedNum;
 	u8 LedSpeed;
 }SysRunStruct;

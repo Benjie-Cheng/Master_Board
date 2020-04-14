@@ -3,17 +3,17 @@
 /*                   RTX_EX1.C:  The first RTX-51 Program                     */
 /*                                                                            */
 /******************************************************************************/
-/*************	XXX_SLC104S_M3_V10	**************/
+/*************	XXX_SLC1K08_M3_V10	**************/
 /*
 Íò¼ÒµÆ»ð¿ØÖÆÆ÷ËµÃ÷£º
-1¡¢Â·ÊýÉèÖÃ£º¿ª»ú¹ý³Ì2¼üÍ¬Ê±°´,½øÈëÂ·ÊýÉèÖÃÄ£Ê½£¬ÉèÖÃÍê³Éºó£¬ÖØÐÂÉÏµç¼´¿É¡£ËÙ¶È°´¼ü-Â·Êý£¬Ä£Ê½¼ü+Â·Êý¡£
+1¡¢Â·ÊýÉèÖÃ£º¿ª»ú¹ý³Ì2¼üÍ¬Ê±°´,½øÈëÂ·ÊýÉèÖÃÄ£Ê½£¬ÉèÖÃÍê³Éºó£¬ÖØÐÂÉÏµç¼´¿É¡£ËÙ¶È°´¼ü+Â·Êý£¬Ä£Ê½¼ü-Â·Êý¡£
 2¡¢°´¼ü´¥·¢ºó¾ù¿ÉÒÔ½«Êý¾Ý´æ´¢
 2¡¢ÉèÖÃÄ£Ê½¿ÉÒÔ´®¿Ú¹Û²ìÊý¾Ý¡£
 3¡¢
 4¡¢
 
 Ó²¼þ×ÊÔ´£º
-1¡¢WS2811+ºìÍâÒ£¿Ø+ÊµÌå°´¼ü3¸ö
+1¡¢WS2811+ºìÍâÒ£¿Ø+ÊµÌå°´¼ü2¸ö
 2¡¢
 3¡¢
 4¡¢
@@ -21,9 +21,9 @@
 
 
 ÒÑ¾­½â¾ö£º
-1¡¢¶à¸ö¿ØÖÆ°åÍ¬Ò»¸ö°´¼üÊÜ¿ØÎÊÌâÐèÒª½â¾ö-PT2272ºÍÒ£¿ØÓ²¼þµØÖ·±àÂë½â¾ö¡£
-2¡¢³¤°´Ê±¼äÉèÖÃÁ¬Ðø´¥·¢¡£Èí¼þÍê³É¡£
-3¡¢Ìí¼ÓÒ£¿Ø¿ØÖÆ¶Ë¿ÚÊ¹ÄÜ¹¦ÄÜ£¬Ð´Èëeeprom±£´æ£¬binÎÄ¼þ¿ÉÒÔÉèÖÃ¶Ë¿ÚÊÇ·ñÊ¹ÓÃ¡£
+1¡¢
+2¡¢
+3¡¢
 
 ´æÔÚÈ±ÏÝ£º
 1¡¢
@@ -39,21 +39,18 @@
 u8 xdata Rec_Buf[Buf_Max];       //½ÓÊÕ´®¿Ú1»º´æÊý×é
 u8 RX_CONT = 0; 
 BOOL B_TX1_Busy;  //·¢ËÍÃ¦±êÖ¾
-//static u8 KeyCode = 0;
 KeyEnum KeyCode;
 BOOL Key_EventProtect = FALSE;
 BOOL E2promErase = FALSE;//e2prom ¸üÐÂ±êÖ¾
-BOOL LedFlash = FALSE;//ÉÁË¸µÆÔÊÐíÔËÐÐ±êÖ¾
-BOOL DebugMode = FALSE;//ÉèÖÃÄ£Ê½ÐèÒª´òÓ¡log
-//u8 nWs=2;
-SysRunStruct SysRun;
+BOOL LedFlash = FALSE;   //ÉÁË¸µÆÔÊÐíÔËÐÐ±êÖ¾
+SysRunStruct SysRun;     //¶¨ÒåÏµÍ³½á¹¹Ìå
 typedef struct{
 	u16 Second; //Ãë
 	u8  Minute; //·Ö
 	u8  Hour; //Ê±
 	u16 Day; //Ìì
-	u8 Flag;
-} RtcStruct;
+	u8  Flag;
+}RtcStruct;
 RtcStruct idata Rtc; //¶¨ÒåRTC ½á¹¹Ìå
 //--------------------------------------
 static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a};//data0£ºLED num£¬data1£ºmode data2£ºspeed
@@ -67,6 +64,7 @@ void puts_to_SerialPort(LogLevel level,u8 *puts);
 void print_char(u8 dat);
 void printss(LogLevel level,u8 *puts,u8 num1);
 void Sys_init (void)  {
+	u8 i;
 	/*104S-SOP8 Ö»ÓÐP3*/
 	P0n_standard(0xff);	//ÉèÖÃÎª×¼Ë«Ïò¿Ú
 	P1n_standard(0xff);	//ÉèÖÃÎª×¼Ë«Ïò¿Ú
@@ -77,16 +75,18 @@ void Sys_init (void)  {
 	//P3n_pure_input(0x11);	//ÉèÖÃÎª×¼Ë«Ïò¿Ú
 	SPEED_GPIO = 1;
 	MODE_GPIO = 1;
-	if(!SPEED_GPIO&&(!MODE_GPIO))//Èç¹û¿ª»ú¹ý³ÌÈý¼üÆë°´£¬Ôò½øÈëÉèÖÃled¸öÊýÄ£Ê½¡£
+	SysRun.Mode = RUN_MODE;
+	while((!SPEED_GPIO&&(!MODE_GPIO)))//Ë«¼üÆë°´³¬¹ý0.5S,½øÈëÉèÖÃÄ£Ê½
 	{
-		SysRun.Mode = SET_MODE;
-		DebugMode = TRUE;
+		uDelayMs(10);
+		if(i++>50){
+			SysRun.Mode = SET_MODE;
+			i=0;
+			break;
+		}
 	}
-	else
-		SysRun.Mode = RUN_MODE;
 }
 //------------------------------------------------
-
 void RtcSystickRoutine(void)
 {
 	static u16 idata Counter = 0;
@@ -128,8 +128,7 @@ void Gpio_KeyScan(u8 *KeyVal)
 	static unsigned char Su8KeyLock2; //1 ºÅ°´¼üµÄ×ÔËø
 	static unsigned char Su8KeyCnt2; //1 ºÅ°´¼üµÄ¼ÆÊ±Æ÷	
 	static unsigned char uiKeyCtntyCnt2;
-	
-	
+		
 	if(Key_EventProtect)
 		return ;
     //¡¾ËÙ¶È¡¿°´¼üµÄÉ¨ÃèÊ¶±ð
@@ -219,8 +218,8 @@ void vEepromUpdate(void)
 	EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);	
 	os_wait2 (K_SIG|K_TMO, 1);	
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
-	SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//»ñÈ¡ledÂ·Êý
-	SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//»ñÈ¡ÔËÐÐÄ£Ê½
+	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG];//»ñÈ¡ledÂ·Êý
+	SysRun.LedMode  = E2PROM_Strings[RUN_MODE_CFG];//»ñÈ¡ÔËÐÐÄ£Ê½
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//»ñÈ¡ÔËÐÐËÙ¶È
 	E2promErase = FALSE;
 }
@@ -237,7 +236,6 @@ void TaskDisplayScan(void)//10ms Ë¢ÐÂÒ»´Î
 			key_led_on(TRUE);
 		}	
 	}
-
 }
 //========================================================================
 // º¯Êý: set_timer2_baudraye(u16 dat)
@@ -336,18 +334,19 @@ static void InitData(void)
 /******************************************************************************/
 
 void init (void) _task_ INIT_0{  	
-		Sys_init();	
-		Clear_WS2811();//³õÊ¼»¯WS2811
-		uart1_config();
-		puts_to_SerialPort(INFO,"I AM SLC8F1K08_M3!\n");
-		EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
-		SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//»ñÈ¡ledÂ·Êý
-		SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//»ñÈ¡ÔËÐÐÄ£Ê½
-		SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//»ñÈ¡ÔËÐÐËÙ¶È
-		os_create_task (DISPLAY);                   
-		os_create_task (KEY_SCAN_1);                               
-		os_create_task (LIGHTS_3);                  
-		os_delete_task (INIT_0);
+	Sys_init();	
+	Clear_WS2811();//³õÊ¼»¯WS2811
+	uart1_config();
+	puts_to_SerialPort(INFO,"I AM SLC8F1K08_M3!\n");
+	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
+	/*Â·Êý£º3£¬Ä£Ê½£º1£¬ËÙ¶È£º10*/
+	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG]; //»ñÈ¡ledÂ·Êý
+	SysRun.LedMode  = E2PROM_Strings[RUN_MODE_CFG];//»ñÈ¡ÔËÐÐÄ£Ê½
+	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];   //»ñÈ¡ÔËÐÐËÙ¶È
+	os_create_task (DISPLAY);                   
+	os_create_task (KEY_SCAN_1);                               
+	os_create_task (LIGHTS_2);                  
+	os_delete_task (INIT_0);
 }
 
 
@@ -390,57 +389,52 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 		switch(KeyCode)
 		{
 			case KeySpeed:
-				
 				if(SysRun.Mode == SET_MODE)
 				{
 					//LED++
-					SysRun.LedNum++;
-					SysRun.LedNum = is_max(1,255,SysRun.LedNum);//´óÓÚ×î´ó»Ö¸´×îÐ¡
+					SysRun.LedNum = SysRun.LedNum+LED_NUM_STEP;
+					SysRun.LedNum = is_max(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);//´óÓÚ×î´ó»Ö¸´×îÐ¡
 					printss(DEBUG,"LED num:",SysRun.LedNum);
 				}
 				else
 				{
 					//Speed++;
-					SysRun.LedSpeed = SysRun.LedSpeed-2;	
-					SysRun.LedSpeed = is_min(1,20,SysRun.LedSpeed);//´óÓÚ×î´ó»Ö¸´×îÐ¡	
+					SysRun.LedSpeed = SysRun.LedSpeed-SPEED_STEP;	
+					SysRun.LedSpeed = is_min(SPEED_MIN,SPEED_MAX,SysRun.LedSpeed);      //Ð¡ÓÚ×îÐ¡»Ö¸´×î´ó	
 					printss(DEBUG,"LED Speed:",SysRun.LedSpeed);					
 				}
 				E2promErase = TRUE;//ÐèÒª´æ´¢
 				break;
 			case KeyRunMode:
-				//nWs--;
 				if(SysRun.Mode == SET_MODE)
 				{
 					//LED--
-					SysRun.LedNum--;
-					SysRun.LedNum = is_min(0,255,SysRun.LedNum);//Ð¡ÓÚ×îÐ¡»Ö¸´×î´ó
+					SysRun.LedNum = SysRun.LedNum-LED_NUM_STEP;
+					SysRun.LedNum = is_min(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);        //Ð¡ÓÚ×îÐ¡»Ö¸´×î´ó
 					printss(DEBUG,"LED num:",SysRun.LedNum);
-					SysRun.LedMode = 0;
 				}
 				else
 				{
 					//Mode++;
-					SysRun.LedMode++;
-					SysRun.LedMode = is_max(0,3,SysRun.LedMode);		//´óÓÚ×î´ó»Ö¸´×îÐ
+					SysRun.LedMode = SysRun.LedMode+LED_TYPE_STEP;
+					SysRun.LedMode = is_max(LED_TYPE_MIN,LED_TYPE_MAX,SysRun.LedMode);		//´óÓÚ×î´ó»Ö¸´×îÐ¡
 					printss(DEBUG,"LED mode:",SysRun.LedMode);
-					
 				}
 				E2promErase = TRUE;//ÐèÒª´æ´¢
 				break;
 			default: 
 				break;
 		}
-			if(KeyCode != KeyNull){
-						               
-				os_delete_task (LIGHTS_3);
+			if(KeyCode != KeyNull){			               
+				os_delete_task (LIGHTS_2);
 				Clear_WS2811();//³õÊ¼»¯WS2811
-				os_create_task (LIGHTS_3);   
+				os_create_task (LIGHTS_2);   
 				LedFlash = TRUE;
 				KeyCode = KeyNull;
 			}
-		E2PROM_Strings[LED_NUM_CFG] = SysRun.LedNum;//»ñÈ¡ledÂ·Êý
-		E2PROM_Strings[RUN_MODE_CFG] = SysRun.LedMode;//»ñÈ¡ÔËÐÐÄ£Ê½
-		E2PROM_Strings[SPEED_CFG] = SysRun.LedSpeed;//»ñÈ¡ÔËÐÐËÙ¶È
+		E2PROM_Strings[LED_NUM_CFG]  = SysRun.LedNum;  //»ñÈ¡ledÂ·Êý
+		E2PROM_Strings[RUN_MODE_CFG] = SysRun.LedMode; //»ñÈ¡ÔËÐÐÄ£Ê½
+		E2PROM_Strings[SPEED_CFG]    = SysRun.LedSpeed;//»ñÈ¡ÔËÐÐËÙ¶È
 		vEepromUpdate();
 		Key_EventProtect = FALSE;//·ÀÖ¹¼üÖµÎ´´¦ÀíÊ±ÓÖ´¥·¢ÐÂ°´¼ü	
 		os_wait2 (K_SIG|K_TMO, 50);	
@@ -449,64 +443,38 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 /******************************************************************************/
 /*    Task 3 'job3':  RTX-51 tiny starts this task with os_create_task (3)    */
 /******************************************************************************/
-void KeyTask (void) _task_ KEY_DONE_2{
+void WS2811_LedTaks (void) _task_ LIGHTS_2{
   while (1)  {                        /* endless loop                         */
-	//os_wait2(K_TMO, 100);
-	//os_wait2 (K_SIG|K_TMO, 10);
-		
-		switch(KeyCode){
-			case KeySpeed:
-				//key_led_reverse();
-				//print_char(KeyCode);
-				break;
-			case KeyRunMode:
-				//key_led_reverse();
-				//print_char(KeyCode);
-				break;
-			case KeyLedNum:
-				//print_char(KeyCode);
-				break;
-			default:     
-				break;
-		}
-		KeyCode = 0;
-  }
-	//os_wait2 (K_SIG, 0);
-}
-/******************************************************************************/
-/*    Task 3 'job3':  RTX-51 tiny starts this task with os_create_task (3)    */
-/******************************************************************************/
-void WS2811_LedTaks (void) _task_ LIGHTS_3{
-  while (1)  {                        /* endless loop                         */
-		
-		switch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
-		{
-			case SET_LINE:
-				TurnOn(SysRun.LedNum,0);
+	witch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
+	
+		case SET_LINE://ÉèÖÃÄ£Ê½
+			TurnOn(SysRun.LedNum,0);
 			break;
-			case Mode1:
-				liushui123(SysRun.LedNum,1);
-				//ChangeHigh(SysRun.LedNum,1);
-				//ChangeLose(SysRun.LedNum,1);
-			break;
-			case Mode2:
-				ChangeHigh(SysRun.LedNum,0);
-				ChangeLose(SysRun.LedNum,0);
-			break;
-			case Mode3:
-				BreathingAdd_Two(SysRun.LedNum);
-			//	liushui123(SysRun.LedNum);
-			//liushui123(SysRun.LedNum,1);
+		case Mode1:
 			liushui123(SysRun.LedNum,1);
-				//liushui(SysRun.LedNum,0);
-			//  liushui(SysRun.LedNum,1);
-				//BreathingDel_Two(SysRun.LedNum);
-			  //BreathingAdd_Two(SysRun.LedNum);
+			//ChangeHigh(SysRun.LedNum,1);
+			//ChangeLose(SysRun.LedNum,1);
 			break;
-			case Mode4:
+		case Mode2:
+			ChangeHigh(SysRun.LedNum,0);
+			ChangeLose(SysRun.LedNum,0);
 			break;
-			
-		}
+		case Mode3:
+			BreathingAdd_Two(SysRun.LedNum);
+		//	liushui123(SysRun.LedNum);
+		//liushui123(SysRun.LedNum,1);
+		liushui123(SysRun.LedNum,1);
+			//liushui(SysRun.LedNum,0);
+		//  liushui(SysRun.LedNum,1);
+			//BreathingDel_Two(SysRun.LedNum);
+		  //BreathingAdd_Two(SysRun.LedNum);
+			break;
+		case Mode4:
+			break;
+		default:
+			TurnOn(SysRun.LedNum,0);
+			break;		
+	}
   }
 }
 //========================================================================
