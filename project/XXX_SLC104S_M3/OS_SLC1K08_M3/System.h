@@ -97,6 +97,9 @@ typedef   unsigned int  WORD;
 #define DISPLAY 3
 
 #define LOG_LEVEL 1
+#define UART_SUPPORT 0    //支持串口需要定义
+#define LOCK_SUPPORT 0    //支持锁系统需要定义
+#define ID_SUPPORT 0      //支持全球ID需要定义
 typedef enum {
 	INFO =1,
 	DEBUG,
@@ -145,22 +148,21 @@ typedef enum {
 	KeyLedNum
 }KeyEnum;
 
-	//#define LED_MAX     99  //最大值
-	//#define LED_MIN     1   //最小值
-	//#define SPEEDMAX    10  //速度最大
-	//#define SPEEDMIN    1   //速度最小
-
 typedef enum {
 	ON       =0x01,
 	OFF      =0x00,
 	ON_ALL   =0xff,
 	OFF_ALL  =0xfe,
-	OFF_ON   =0xfd
+	OFF_ON   =0xfd,
+	TEST_REV = 0x11,
+	LOCK_REV = 0x66
+	
 }LogicType;
 typedef enum {
 	LED_NUM_CFG=0,
 	RUN_TYPE_CFG,
 	SPEED_CFG,
+	REV_CFG,
 	MAX_CFG
 /*
 data0：路数
@@ -172,7 +174,8 @@ data4:
 }E2promCfg;
 enum Run_Mode{
 	SET_MODE=0,
-	RUN_MODE
+	RUN_MODE,
+	LOCK_MODE
 };
 typedef struct{
 	u8 Step;   //运行步骤,switch 切换
@@ -180,6 +183,7 @@ typedef struct{
 	u8 LedMode;//花样模式
 	u8 LedNum;
 	u8 LedSpeed;
+	u8 State;  //状态
 }SysRunStruct;
 
 extern SysRunStruct;

@@ -3,31 +3,29 @@
 /*                   RTX_EX1.C:  The first RTX-51 Program                     */
 /*                                                                            */
 /******************************************************************************/
-/*************	XXX_SLC1K08_M3_V10	**************/
+/*************	HY_SLC1K08_M3_V20	**************/
 /*
 万家灯火控制器说明：
 1、路数设置：开机过程2键同时按,进入路数设置模式，设置完成后，重新上电即可。速度按键+路数，模式键-路数。
 2、按键触发后均可以将数据存储
-2、设置模式可以串口观察数据。
+2、设置模式可以串口观察数据,波特率115200。
 3、
 4、
 
 硬件资源：
-1、WS2811+红外遥控+实体按键2个
-2、
-3、
-4、
+1、WS2811/INK1003SO/TM1803+红外遥控+实体按键2个
 
 
+需要解决：
+1、宏控制适配WS2811时序。
+2、添加红外遥控控制。
+3、定制花样。
+4、制作死锁程序，收费解密。
 
 已经解决：
 1、
 2、
 3、
-
-存在缺陷：
-1、
-2、
 */
 //#include <rtx51tny.h>                 /* RTX-51 tiny functions & defines      */
 #include "system.h"
@@ -36,9 +34,9 @@
 
 #define SysTick 10   //10ms
 #define Buf_Max 20
-u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
+u8 xdata Rec_Buf[Buf_Max];//接收串口1缓存数组
 u8 RX_CONT = 0; 
-BOOL B_TX1_Busy;  //发送忙标志
+BOOL B_TX1_Busy;          //发送忙标志
 KeyEnum KeyCode;
 BOOL Key_EventProtect = FALSE;
 BOOL E2promErase = FALSE;//e2prom 更新标志
@@ -53,7 +51,7 @@ typedef struct{
 }RtcStruct;
 RtcStruct idata Rtc; //定义RTC 结构体
 //--------------------------------------
-static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a};//data0：LED num，data1：mode data2：speed
+static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a,0x00};//data0：LED num，data1：mode data2：speed
 /*
 data0：LED路数
 data1：花样模式
@@ -260,6 +258,9 @@ void set_timer2_baudraye(u16 dat)
 
 void uart1_config()
 {
+#if (!UART_SUPPORT)
+	return;
+#enidf	
 	/*********** 波特率使用定时器2 *****************/
 	AUXR |= 0x01;		//S1 BRT Use Timer2;
 	set_timer2_baudraye(65536UL - (MAIN_Fosc / 4) / Baudrate1);
@@ -269,7 +270,6 @@ void uart1_config()
 	ES  = 1;	//允许中断
 	REN = 1;	//允许接收
 	EA = 1;
-
 	B_TX1_Busy = 0;
 }
 //========================================================================
@@ -284,6 +284,9 @@ void uart1_config()
 
 void print_string(LogLevel level,u8 *puts)
 {
+#if (!UART_SUPPORT)
+	return;
+#enidf
 	if(level<=LOG_LEVEL)
 		return;
 	for (; *puts != 0;	puts++)   	//遇到停止符*结束
@@ -295,12 +298,18 @@ void print_string(LogLevel level,u8 *puts)
 }
 void print_char(u8 dat)
 {
+#if (!UART_SUPPORT)
+	return;
+#enidf
 	SBUF = dat;
 	B_TX1_Busy = 1;
 	while(B_TX1_Busy);
 }
 void puts_to_SerialPort(LogLevel level,u8 *puts)
 {
+#if (!UART_SUPPORT)
+	return;
+#enidf
 	if(level<=LOG_LEVEL)
 		return;
   for (; *puts != 0;	puts++)   	//遇到停止符0结束
@@ -329,6 +338,16 @@ static void InitData(void)
 {
 	
 }
+//-----------全球唯一ID读取--------------//
+#define ID_ADDR_ROM 0x0ff9
+void Send_Self_Id(BYTE code *cptr)
+{
+	u8 i= 0;
+	for (i=0; i<7; i++)          //读7个字节
+    {
+        print_char(*cptr++);      //发送ID到串口
+    }
+}
 /******************************************************************************/
 /*       Task 0 'job0':  RTX-51 tiny starts execution with task 0             */
 /******************************************************************************/
@@ -337,18 +356,31 @@ void init (void) _task_ INIT_0{
 	Sys_init();	
 	Clear_WS2811();//初始化WS2811
 	uart1_config();
+#if (ID_SUPPORT)
+	Send_Self_Id(ID_ADDR_ROM);//开机前五个字节为全球唯一ID
+#endif
 	puts_to_SerialPort(INFO,"I AM SLC8F1K08_M3!\n");
-	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
+	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);//开机读取保存在eeprom 数据
 	/*路数：3，模式：1，速度：10*/
 	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG]; //获取led路数
 	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];   //获取运行速度
+	SysRun.State     = E2PROM_Strings[REV_CFG];     //版本：试用0x11、上锁、解锁0x66。
+#if (LOCK_SUPPORT)
+	if((SysRun.State != LOCK_REV)||(SysRun.State != TEST_REV))
+		goto lock_mode;
+#endif
 	os_create_task (DISPLAY);                   
 	os_create_task (KEY_SCAN_1);                               
-	os_create_task (LIGHTS_2);                  
+	os_create_task (LIGHTS_2); 
 	os_delete_task (INIT_0);
+#if (LOCK_SUPPORT)
+lock_mode：//锁模式
+	puts_to_SerialPort(ERR,"Please contact 15901856750\n");
+	print_char(creat_random()+TEST_REV);//随机数用于远程升级解锁
+	os_delete_task (INIT_0);
+#endif
 }
-
 
 /******************************************************************************/
 /*    Task 1 'job1':  RTX-51 tiny starts this task with os_create_task (1)    */
@@ -357,8 +389,6 @@ void Dispaly (void) _task_ DISPLAY{
   while (1)  {                        /* endless loop                         */
 		RtcSystickRoutine();
 		//key_led_reverse();
-		//puts_to_SerialPort("I AM SLC104S_M3!\n");
-		//print_char(0x02);
 		if(Rtc.Flag){
 			Rtc.Flag = FALSE;
 			//key_led_reverse();
@@ -384,7 +414,7 @@ void Dispaly (void) _task_ DISPLAY{
 /******************************************************************************/
 void Key_Scan (void) _task_ KEY_SCAN_1{
   while (1)  {                        /* endless loop                         */
-		//os_wait2(K_TMO, 10);//10ms 一次
+		//os_wait2(K_TMO, 10);        //10ms 一次
 		Gpio_KeyScan(&KeyCode);
 		switch(KeyCode)
 		{
@@ -393,7 +423,7 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 				{
 					//LED++
 					SysRun.LedNum = SysRun.LedNum+LED_NUM_STEP;
-					SysRun.LedNum = is_max(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);//大于最大恢复最小
+					SysRun.LedNum = is_max(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);       //大于最大恢复最小
 					printss(DEBUG,"LED num:",SysRun.LedNum);
 				}
 				else
