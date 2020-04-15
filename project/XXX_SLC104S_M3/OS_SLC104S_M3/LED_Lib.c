@@ -186,23 +186,6 @@ void ChangeLose(bit GG1,bit RR1,bit BB1)	//纯色渐暗
 	}	
 }
 */
-void RgbChange(void)
-{
-//		ChangeHigh(1,0,0);
-//		ChangeLose(1,0,0);
-//		ChangeHigh(0,1,0);
-//		ChangeLose(0,1,0);
-//		ChangeHigh(0,0,1);
-//		ChangeLose(0,0,1);
-//		ChangeHigh(1,1,1);			
-//		ChangeLose(1,1,1);
-//		ChangeHigh(1,1,0);			
-//		ChangeLose(1,1,0);
-//		ChangeHigh(1,0,1);			
-//		ChangeLose(1,0,1);
-//		ChangeHigh(0,1,1);			
-//		ChangeLose(0,1,1);
-}
 void led_test()
 {
 
@@ -250,8 +233,34 @@ void TurnOn(u8 nLed,bit BL) //常亮数量
 		for(n=0;n<3-RemLed;n++)//RGB_count
 			WS2811_SendByte(0);
 	}		
-	WS2811_Reset();
-	//os_wait2(K_TMO, 1);
+	//WS2811_Reset();
+	os_wait2(K_TMO, 10);
+}
+/**********************************************
+*功能：灰度调节
+**********************************************/
+void BLSet(u8 nLed,bit BL,u8 brightness) //常亮数量
+{  
+	u8 n,ModLed,RemLed;//RGB_count=RGB_c;
+	
+	ModLed = mod(nLed,3);//ws2811个数
+	RemLed = rem(nLed,3);//最后一个ws2811的单路数
+	//Clear_WS2811();
+	if(ModLed == 0)//小于3路
+	{
+		WS2811_SendByte(mod((nLed+2),3)? brightness:BL_MIN(BL));
+		WS2811_SendByte(mod((nLed+1),3)? brightness:BL_MIN(BL));
+		WS2811_SendByte(mod((nLed+0),3)? brightness:BL_MIN(BL));
+	}
+	else
+	{
+		for(n=0;n<nLed;n++)//RGB_count
+			WS2811_SendByte(brightness);
+		for(n=0;n<3-RemLed;n++)//RGB_count
+			WS2811_SendByte(0);
+	}		
+	//WS2811_Reset();
+	os_wait2(K_TMO, 10);
 }
 /**********************************************
 *功能：常灭 
@@ -476,6 +485,7 @@ void breath_n(u8 n,bit BL,u8 mode)
 /**********************************************
 *功能：一路呼吸流水,带背光控制
 **********************************************/
+/*
 void liushui123(u8 nLed,bit BL)
 {
 	u8 n;
@@ -487,9 +497,11 @@ void liushui123(u8 nLed,bit BL)
 		breath_n(n,BL,DWON);
 	}
 }
+*/
 /**********************************************
 *功能：常亮递增
 **********************************************/
+/*
 void liushui(u8 nLed,bit BL)
 {
 	u8 n;
@@ -499,3 +511,4 @@ void liushui(u8 nLed,bit BL)
 		breath_n(n,BL,3);
 	}
 }
+*/

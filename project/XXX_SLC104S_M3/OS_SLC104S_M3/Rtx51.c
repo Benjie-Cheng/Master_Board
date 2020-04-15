@@ -62,7 +62,7 @@ void puts_to_SerialPort(LogLevel level,u8 *puts);
 void print_char(u8 dat);
 void printss(LogLevel level,u8 *puts,u8 num1);
 void Sys_init (void)  {
-	u8 i;
+	//u8 i;
 	/*104S-SOP8 只有P3*/
 	P0n_standard(0xff);	//设置为准双向口
 	P1n_standard(0xff);	//设置为准双向口
@@ -74,15 +74,19 @@ void Sys_init (void)  {
 	SPEED_GPIO = 1;
 	MODE_GPIO = 1;
 	SysRun.Mode = RUN_MODE;
-	while((!SPEED_GPIO&&(!MODE_GPIO)))//双键齐按超过0.5S,进入设置模式
+	if((!SPEED_GPIO)&&(!MODE_GPIO))
+		SysRun.Mode = SET_MODE;
+/*
+	while((!SPEED_GPIO)&&(!MODE_GPIO))//双键齐按超过0.5S,进入设置模式
 	{
-		uDelayMs(10);
+		uDelayMs(1);
 		if(i++>50){
 			SysRun.Mode = SET_MODE;
-			i=0;
+			//i=0;
 			break;
 		}
-	}
+	};
+	*/
 }
 //------------------------------------------------
 void RtcSystickRoutine(void)
@@ -120,7 +124,7 @@ void RtcSystickRoutine(void)
 #define KEY_TIME_030S   3
 void Gpio_KeyScan(u8 *KeyVal)
 {
-	static unsigned char Su8KeyLock1 = 0; //1 号按键的自锁
+	static unsigned char Su8KeyLock1; //1 号按键的自锁
 	static unsigned char Su8KeyCnt1; //1 号按键的计时器	
 	static unsigned char uiKeyCtntyCnt1;
 	static unsigned char Su8KeyLock2; //1 号按键的自锁
@@ -134,15 +138,16 @@ void Gpio_KeyScan(u8 *KeyVal)
 	{
 		Su8KeyLock1=0;
 		Su8KeyCnt1=0;
-		uiKeyCtntyCnt1=0;	
+		uiKeyCtntyCnt1=0;
+		//key_led_on(FALSE);		
 		*KeyVal = (u8)KeyNull;	
 	}
 	else if(0==Su8KeyLock1)
 	{
 		Su8KeyCnt1++;
-		if(Su8KeyCnt1>=1)
+		if(Su8KeyCnt1>=KEY_FILTER_TIME)
 		{
-			Su8KeyLock1=0; 
+			Su8KeyLock1=1; 
 			Su8KeyCnt1=0;	
 			*KeyVal = (u8)KeySpeed;    //触发1号键
 			//if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
@@ -475,31 +480,16 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 /******************************************************************************/
 void WS2811_LedTaks (void) _task_ LIGHTS_2{
   while (1)  {                        /* endless loop                         */
-	switch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
+	switch((SysRun.Mode == SET_MODE)?5:SysRun.LedMode)
 		{
 			case SET_LINE://设置模式
-				TurnOn(SysRun.LedNum,0);
+				BLSet(SysRun.LedNum,0,LOW_BL);
 				break;
 			case Mode1:
-				liushui123(SysRun.LedNum,1);
-				//ChangeHigh(SysRun.LedNum,1);
-				//ChangeLose(SysRun.LedNum,1);
+				BLSet(SysRun.LedNum,0,MED_BL);
 				break;
 			case Mode2:
-				ChangeHigh(SysRun.LedNum,0);
-				ChangeLose(SysRun.LedNum,0);
-				break;
-			case Mode3:
-				BreathingAdd_Two(SysRun.LedNum);
-			//	liushui123(SysRun.LedNum);
-			//liushui123(SysRun.LedNum,1);
-			//liushui123(SysRun.LedNum,1);
-				//liushui(SysRun.LedNum,0);
-			//  liushui(SysRun.LedNum,1);
-				//BreathingDel_Two(SysRun.LedNum);
-				//BreathingAdd_Two(SysRun.LedNum);
-				break;
-			case Mode4:
+				BLSet(SysRun.LedNum,0,MAX_BL);
 				break;
 			default:
 				TurnOn(SysRun.LedNum,0);

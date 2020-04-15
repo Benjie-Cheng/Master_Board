@@ -113,11 +113,13 @@ enum {
 	LED_NUM_MAX  = 60,
 	LED_NUM_STEP = 1,
 	LED_TYPE_MIN  = 0,
-	LED_TYPE_MAX  = 3,
+	LED_TYPE_MAX  = 2,
 	LED_TYPE_STEP = 1,
 };
 
-#define MAX_BL 150
+#define MAX_BL 255
+#define MED_BL 127
+#define LOW_BL 76
 #define MIN_BL 2
 #define BL_SET 1
 #define BL_MIN(n) n ? MIN_BL:0
