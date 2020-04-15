@@ -38,6 +38,8 @@ typedef   double       	fp64;          /* 双精度浮点数(64位长度)       
 typedef   unsigned char BYTE;
 typedef   unsigned int  WORD;
 
+	#define UP  				1
+	#define DWON  		  0
 /*
 	#ifndef TRUE
 	#define TRUE  				1
@@ -86,13 +88,51 @@ typedef   unsigned int  WORD;
 #define creat_random() (rand() % (MAX + 1 - MIN)+ MIN)      //产生随机数，用于数据加密
 #define is_max(left, right, value) value>right ? left : value
 #define is_min(left, right, value) value<left ? right : value
+
 //---------------define by project-----------------//
 #define INIT_0 0
 #define KEY_SCAN_1 1
-#define KEY_DONE_2 2
-#define LIGHTS_3 3
-#define DISPLAY 4
+//#define KEY_DONE_2 2
+#define LIGHTS_2 2
+#define DISPLAY 3
 
+#define LOG_LEVEL 1
+#define UART_SUPPORT 0    //支持串口需要定义
+#define LOCK_SUPPORT 0    //支持锁系统需要定义
+#define ID_SUPPORT 0      //支持全球ID需要定义
+typedef enum {
+	INFO =1,
+	DEBUG,
+	ERR
+}LogLevel;
+enum {
+	SPEED_MIN  =1,
+	SPEED_MAX  =20,
+	SPEED_STEP =2,
+	LED_NUM_MIN  = 1,
+	LED_NUM_MAX  = 60,
+	LED_NUM_STEP = 1,
+	LED_TYPE_MIN  = 0,
+	LED_TYPE_MAX  = 3,
+	LED_TYPE_STEP = 1,
+};
+
+#define MAX_BL 150
+#define MIN_BL 2
+#define BL_SET 1
+#define BL_MIN(n) n ? MIN_BL:0
+typedef enum {
+	SET_LINE = 0,
+	Mode1,
+	Mode2,
+	Mode3,
+	Mode4,
+	Mode5,
+	Mode6,
+	Mode7,
+	Mode8,
+	Mode9
+}LightType;
 //typedef enum {
 //	INIT_0,                          /* task number of task:  init           */
 //	KEY_SCAN_1,						   /* task number of task:  keyscan        */
@@ -108,51 +148,54 @@ typedef enum {
 	KeyLedNum
 }KeyEnum;
 
-	#define LED_MAX     99  //最大值
-	#define LED_MIN     1   //最小值
-	#define SPEEDMAX    10  //速度最大
-	#define SPEEDMIN    1   //速度最小
-
 typedef enum {
 	ON       =0x01,
 	OFF      =0x00,
 	ON_ALL   =0xff,
 	OFF_ALL  =0xfe,
-	OFF_ON   =0xfd
+	OFF_ON   =0xfd,
+	TEST_REV = 0x11,
+	LOCK_REV = 0x66
+	
 }LogicType;
 typedef enum {
 	LED_NUM_CFG=0,
-	RUN_MODE_CFG,
+	RUN_TYPE_CFG,
 	SPEED_CFG,
+	REV_CFG,
 	MAX_CFG
 /*
-data0：通时间
-data1：关时间
-data2：运行模式
-data3:支持PT2272
-data4:端口支持数据
+data0：路数
+data1：模式
+data2：速度
+data3:
+data4:
 */
 }E2promCfg;
 enum Run_Mode{
 	SET_MODE=0,
-	RUN_MODE
+	RUN_MODE,
+	LOCK_MODE
 };
 typedef struct{
 	u8 Step;   //运行步骤,switch 切换
-	u8 Mode;   //运行模式 switch 切换，掉电需要记录到EEPROM中
-	u8 LedMode;
+	u8 Mode;   //运行和设置两种状态
+	u8 LedMode;//花样模式
 	u8 LedNum;
 	u8 LedSpeed;
+	u8 State;  //状态
 }SysRunStruct;
-extern SysRunStruct SysRun;
+
+extern SysRunStruct;
 //SysRunStruct SysRun;
-#define SPEED_GPIO P30
-#define MODE_GPIO  P31
-#define NLED_GPIO  P34
+#define SPEED_GPIO P34
+#define MODE_GPIO  P30
+#define NLED_GPIO  P33
 //------common function------------------------------//
 void TxSend(u8 dat);
 void Fake_PrintString(u8 *puts);
 void key_led_reverse(void);
 void key_led_on(BOOL enable);
+void uDelayMs(u16 t);		//@35MHz
 
 #endif

@@ -10,6 +10,7 @@
 #define RED   2
 #define GREEN 3
 #define WHITE 0
+extern SysRunStruct SysRun;
 //extern u8  nWs;
 //extern void DelayMS(u16 t);
 
@@ -30,9 +31,17 @@ void qicaituowei(void);//七彩拖尾
 void DDPADD4(void);//待调试
 void DDPADD5(void);//待调试
 void PAOMA(u8 GG1,u8 GG2);//
-void ChangeHigh(bit GG1,bit RR1,bit BB1); //纯色渐亮
-void ChangeLose(bit GG1,bit RR1,bit BB1);	//纯色渐变暗
+//void ChangeHigh(bit GG1,bit RR1,bit BB1); //纯色渐亮
+//void ChangeLose(bit GG1,bit RR1,bit BB1);	//纯色渐变暗
 void RgbChange(void);//七彩渐变色
 void led_test();
-
+void TurnOn(u8 nLed,bit BL); //常亮数量
+void TurnOff(u8 nLed,bit BL);	//常灭
+void ChangeHigh(u8 nLed,bit BL); //纯色渐亮
+void ChangeLose(u8 nLed,bit BL);	//纯色渐暗
+void func1(u8 num1,u8 num2,u8 nLed,bit up);
+void BreathingAdd_Two(u8 nLed);
+void BreathingDel_Two(u8 nLed);
+void liushui(u8 nLed,bit BL);
+void liushui123(u8 nLed,bit BL);
 #endif

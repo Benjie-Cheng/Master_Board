@@ -6,28 +6,26 @@
 /*************	XXX_SLC104S_M3_V10	**************/
 /*
 万家灯火控制器说明：
-1、路数设置：开机过程3键同时按,进入路数设置模式，设置完成后，重新上电即可。速度按键-路数，模式键+路数。
+1、路数设置：开机过程2键同时按,进入路数设置模式，设置完成后，重新上电即可。速度按键+路数，模式键-路数。
 2、按键触发后均可以将数据存储
-2、设置模式可以串口观察数据。
+2、设置模式可以串口观察数据,波特率115200。
 3、
 4、
 
 硬件资源：
-1、WS2811+红外遥控+实体按键3个
-2、
-3、
-4、
+1、WS2811/INK1003SO/TM1803+红外遥控+实体按键2个
 
 
+需要解决：
+1、宏控制适配WS2811时序。
+2、添加红外遥控控制。
+3、定制花样。
+4、制作死锁程序，收费解密。
 
 已经解决：
-1、多个控制板同一个按键受控问题需要解决-PT2272和遥控硬件地址编码解决。
-2、长按时间设置连续触发。软件完成。
-3、添加遥控控制端口使能功能，写入eeprom保存，bin文件可以设置端口是否使用。
-
-存在缺陷：
 1、
 2、
+3、
 */
 //#include <rtx51tny.h>                 /* RTX-51 tiny functions & defines      */
 #include "system.h"
@@ -36,49 +34,55 @@
 
 #define SysTick 10   //10ms
 #define Buf_Max 20
-u8 xdata Rec_Buf[Buf_Max];       //接收串口1缓存数组
+u8 xdata Rec_Buf[Buf_Max];//接收串口1缓存数组
 u8 RX_CONT = 0; 
-BOOL B_TX1_Busy;  //发送忙标志
-static u8 KeyCode = 0;
+BOOL B_TX1_Busy;          //发送忙标志
+KeyEnum KeyCode;
 BOOL Key_EventProtect = FALSE;
 BOOL E2promErase = FALSE;//e2prom 更新标志
-BOOL LedFlash = FALSE;//闪烁灯允许运行标志
-BOOL DebugMode = FALSE;//设置模式需要打印log
+BOOL LedFlash = FALSE;   //闪烁灯允许运行标志
+SysRunStruct SysRun;     //定义系统结构体
 typedef struct{
 	u16 Second; //秒
 	u8  Minute; //分
 	u8  Hour; //时
 	u16 Day; //天
-	u8 Flag;
-} RtcStruct;
+	u8  Flag;
+}RtcStruct;
 RtcStruct idata Rtc; //定义RTC 结构体
-
 //--------------------------------------
-static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x05};//data0：LED num，data1：mode data2：speed
+static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a,0x00};//data0：LED num，data1：mode data2：speed
 /*
 data0：LED路数
 data1：花样模式
 data2：运行速度
 */
-void print_string(u8 *puts);
-void puts_to_SerialPort(u8 *puts);
+void print_string(LogLevel level,u8 *puts);
+void puts_to_SerialPort(LogLevel level,u8 *puts);
 void print_char(u8 dat);
-void printss(u8 *puts,u8 num1);
+void printss(LogLevel level,u8 *puts,u8 num1);
 void Sys_init (void)  {
+	u8 i;
 	/*104S-SOP8 只有P3*/
-	//P0n_standard(0xff);	//设置为准双向口
-	//P1n_standard(0xff);	//设置为准双向口
-	//P2n_push_pull(0xff);//设置为准双向口
+	P0n_standard(0xff);	//设置为准双向口
+	P1n_standard(0xff);	//设置为准双向口
+	P2n_push_pull(0xff);//设置为准双向口
 	P3n_standard(0xff);	//设置为准双向口
-	//P4n_standard(0xff);	//设置为准双向口
-	//P5n_standard(0xff);	//设置为准双向口
-	if(!SPEED_GPIO&&(!MODE_GPIO)&&(!NLED_GPIO))//如果开机过程三键齐按，则进入设置led个数模式。
+	P4n_standard(0xff);	//设置为准双向口
+	P5n_standard(0xff);	//设置为准双向口
+	//P3n_pure_input(0x11);	//设置为准双向口
+	SPEED_GPIO = 1;
+	MODE_GPIO = 1;
+	SysRun.Mode = RUN_MODE;
+	while((!SPEED_GPIO&&(!MODE_GPIO)))//双键齐按超过0.5S,进入设置模式
 	{
-		SysRun.Mode = SET_MODE;
-		DebugMode = TRUE;
+		uDelayMs(10);
+		if(i++>50){
+			SysRun.Mode = SET_MODE;
+			i=0;
+			break;
+		}
 	}
-	else
-		SysRun.Mode = RUN_MODE;
 }
 //------------------------------------------------
 void RtcSystickRoutine(void)
@@ -116,14 +120,13 @@ void RtcSystickRoutine(void)
 #define KEY_TIME_030S   3
 void Gpio_KeyScan(u8 *KeyVal)
 {
-	static unsigned char Su8KeyLock1; //1 号按键的自锁
+	static unsigned char Su8KeyLock1 = 0; //1 号按键的自锁
 	static unsigned char Su8KeyCnt1; //1 号按键的计时器	
 	static unsigned char uiKeyCtntyCnt1;
 	static unsigned char Su8KeyLock2; //1 号按键的自锁
 	static unsigned char Su8KeyCnt2; //1 号按键的计时器	
 	static unsigned char uiKeyCtntyCnt2;
-	
-	//*KeyVal = (u8)value;
+		
 	if(Key_EventProtect)
 		return ;
     //【速度】按键的扫描识别
@@ -131,18 +134,18 @@ void Gpio_KeyScan(u8 *KeyVal)
 	{
 		Su8KeyLock1=0;
 		Su8KeyCnt1=0;
-		uiKeyCtntyCnt1=0;
-		*KeyVal = (u8)KeyNull;		
+		uiKeyCtntyCnt1=0;	
+		*KeyVal = (u8)KeyNull;	
 	}
 	else if(0==Su8KeyLock1)
 	{
 		Su8KeyCnt1++;
-		if(Su8KeyCnt1>=KEY_FILTER_TIME)
+		if(Su8KeyCnt1>=1)
 		{
-			Su8KeyLock1=1; 
-			Su8KeyCnt1=0;		
+			Su8KeyLock1=0; 
+			Su8KeyCnt1=0;	
 			*KeyVal = (u8)KeySpeed;    //触发1号键
-			if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
+			//if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
 			{
 				Key_EventProtect = TRUE;
 				Su8KeyLock1 = 2;
@@ -166,7 +169,7 @@ void Gpio_KeyScan(u8 *KeyVal)
 		}
 	}
 	//【模式】按键的扫描识别
-	if(0!=KeyRunMode)
+	if(0!=MODE_GPIO)
 	{
 		Su8KeyLock2=0;
 		Su8KeyCnt2=0; 
@@ -181,7 +184,7 @@ void Gpio_KeyScan(u8 *KeyVal)
 			Su8KeyLock2=1;  
 			Su8KeyCnt2=0;
 			*KeyVal = (u8)KeyRunMode;    //触发1号键
-			if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
+			//if(SysRun.Mode != SET_MODE)//如果不是设置模式不支持连续触发
 			{
 				Key_EventProtect = TRUE;
 				Su8KeyLock2 =2;
@@ -213,64 +216,24 @@ void vEepromUpdate(void)
 	EEPROM_write_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);	
 	os_wait2 (K_SIG|K_TMO, 1);	
 	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
-	SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//获取led路数
-	SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
+	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG];//获取led路数
+	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//获取运行速度
 	E2promErase = FALSE;
 }
 void TaskDisplayScan(void)//10ms 刷新一次
 { 	
-	Gpio_KeyScan(&KeyCode);
-	if(!KeyCode){
-		LedFlash = TRUE;//有按键按下需要闪烁一次LED提示
-		printss("KeyScan task:",KeyCode);
+	static u8 time = 0;
+	if(LedFlash){
+		key_led_reverse();
+		time++;
+		if(time>6)
+		{
+			time = 0;
+			LedFlash = FALSE;//有按键按下需要闪烁一次LED提示
+			key_led_on(TRUE);
+		}	
 	}
-	switch(KeyCode)
-	{
-		case KeySpeed:
-			KeyCode = KeyNull;
-			if(SysRun.Mode == SET_MODE)
-			{
-				//LED++
-				SysRun.LedNum++;
-				SysRun.LedNum = is_max(1,254,SysRun.LedNum);//大于最大恢复最小
-				printss("LED num:",SysRun.LedNum);
-			}
-			else
-			{
-				//Speed++;
-				SysRun.LedSpeed++;	
-				SysRun.LedSpeed = is_max(1,10,SysRun.LedSpeed);//大于最大恢复最小				
-			}
-			E2promErase = TRUE;//需要存储
-			break;
-		case KeyRunMode:
-			KeyCode = KeyNull;
-			if(SysRun.Mode == SET_MODE)
-			{
-				//LED--
-				SysRun.LedNum--;
-				SysRun.LedNum = is_min(1,255,SysRun.LedNum);//小于最小恢复最大
-				printss("LED num:",SysRun.LedNum);
-			}
-			else
-			{
-				//Mode++;
-				SysRun.LedMode++;
-				SysRun.LedMode = is_max(0,10,SysRun.LedMode);		//大于最大恢复最小
-				
-			}
-			E2promErase = TRUE;//需要存储
-			break;
-		default: 
-		break;
-	}
-	E2PROM_Strings[LED_NUM_CFG] = SysRun.LedNum;//获取led路数
-	E2PROM_Strings[RUN_MODE_CFG] = SysRun.LedMode;//获取运行模式
-	E2PROM_Strings[SPEED_CFG] = SysRun.LedSpeed;//获取运行速度
-	vEepromUpdate();
-	Key_EventProtect = FALSE;//防止键值未处理时又触发新按键	
-	os_wait2 (K_SIG|K_TMO, 1);	
 }
 //========================================================================
 // 函数: set_timer2_baudraye(u16 dat)
@@ -295,6 +258,9 @@ void set_timer2_baudraye(u16 dat)
 
 void uart1_config()
 {
+#if (!UART_SUPPORT)
+	return;
+#endif	
 	/*********** 波特率使用定时器2 *****************/
 	AUXR |= 0x01;		//S1 BRT Use Timer2;
 	set_timer2_baudraye(65536UL - (MAIN_Fosc / 4) / Baudrate1);
@@ -304,7 +270,6 @@ void uart1_config()
 	ES  = 1;	//允许中断
 	REN = 1;	//允许接收
 	EA = 1;
-
 	B_TX1_Busy = 0;
 }
 //========================================================================
@@ -317,10 +282,13 @@ void uart1_config()
 // 备注: 
 //========================================================================
 
-void print_string(u8 *puts)
+void print_string(LogLevel level,u8 *puts)
 {
-	if(!DebugMode)
+#if (!UART_SUPPORT)
 	return;
+#endif
+	if(level<=LOG_LEVEL)
+		return;
 	for (; *puts != 0;	puts++)   	//遇到停止符*结束
 	{
 		SBUF = *puts;
@@ -330,26 +298,34 @@ void print_string(u8 *puts)
 }
 void print_char(u8 dat)
 {
-	if(!DebugMode)
-		return;
+#if (!UART_SUPPORT)
+	return;
+#endif
 	SBUF = dat;
 	B_TX1_Busy = 1;
 	while(B_TX1_Busy);
 }
-void puts_to_SerialPort(u8 *puts)
+void puts_to_SerialPort(LogLevel level,u8 *puts)
 {
-    for (; *puts != 0;	puts++)   	//遇到停止符0结束
+#if (!UART_SUPPORT)
+	return;
+#endif
+	if(level<=LOG_LEVEL)
+		return;
+  for (; *puts != 0;	puts++)   	//遇到停止符0结束
 	{
 		SBUF = *puts;
 		B_TX1_Busy = 1;
 		while(B_TX1_Busy);
 	}
 }
-void printss(u8 *puts,u8 num1)
+void printss(LogLevel level,u8 *puts,u8 num1)
 {
 	u8 temp;
 	temp = rem(num1,100);
-	print_string(puts);
+	if(level<=LOG_LEVEL)
+		return;
+	print_string(level,puts);
 	print_char(mod(num1,100)+0x30);
 	print_char(mod(temp,10)+0x30);
 	print_char(rem(temp,10)+0x30);
@@ -362,29 +338,49 @@ static void InitData(void)
 {
 	
 }
+//-----------全球唯一ID读取--------------//
+#define ID_ADDR_ROM 0x0ff9
+void Send_Self_Id(BYTE code *cptr)
+{
+	u8 i= 0;
+	for (i=0; i<7; i++)          //读7个字节
+    {
+        print_char(*cptr++);      //发送ID到串口
+    }
+}
 /******************************************************************************/
 /*       Task 0 'job0':  RTX-51 tiny starts execution with task 0             */
 /******************************************************************************/
 
 void init (void) _task_ INIT_0{  	
-		Sys_init();	
-		Clear_WS2811();//初始化WS2811
-		uart1_config();
-		puts_to_SerialPort("I AM SLC104S_M3!\n");
-		EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);
-		SysRun.LedNum = E2PROM_Strings[LED_NUM_CFG];//获取led路数
-		SysRun.LedMode = E2PROM_Strings[RUN_MODE_CFG];//获取运行模式
-		SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];//获取运行速度
-		os_create_task (DISPLAY);                   
-		os_create_task (KEY_SCAN_1);                
-		os_create_task (KEY_DONE_2);                
-		os_create_task (LIGHTS_3);                  
-		os_delete_task (INIT_0);
-
-	os_create_task (KEY_SCAN_1);
-	os_delete_task (INIT_0);	
+	Sys_init();	
+	Clear_WS2811();//初始化WS2811
+	uart1_config();
+#if (ID_SUPPORT)
+	Send_Self_Id(ID_ADDR_ROM);//开机前五个字节为全球唯一ID
+#endif
+	puts_to_SerialPort(INFO,"I AM SLC8F1K08_M3!\n");
+	EEPROM_read_n(IAP_ADDRESS,E2PROM_Strings,MAX_CFG);//开机读取保存在eeprom 数据
+	/*路数：3，模式：1，速度：10*/
+	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG]; //获取led路数
+	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
+	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];   //获取运行速度
+	SysRun.State     = E2PROM_Strings[REV_CFG];     //版本：试用0x11、上锁、解锁0x66。
+#if (LOCK_SUPPORT)
+	if((SysRun.State != LOCK_REV)||(SysRun.State != TEST_REV))
+		goto lock_mode;
+#endif
+	os_create_task (DISPLAY);                   
+	os_create_task (KEY_SCAN_1);                               
+	os_create_task (LIGHTS_2); 
+	os_delete_task (INIT_0);
+#if (LOCK_SUPPORT)
+lock_mode：//锁模式
+	puts_to_SerialPort(ERR,"Please contact 15901856750\n");
+	print_char(creat_random()+TEST_REV);//随机数用于远程升级解锁
+	os_delete_task (INIT_0);
+#endif
 }
-
 
 /******************************************************************************/
 /*    Task 1 'job1':  RTX-51 tiny starts this task with os_create_task (1)    */
@@ -392,22 +388,24 @@ void init (void) _task_ INIT_0{
 void Dispaly (void) _task_ DISPLAY{  
   while (1)  {                        /* endless loop                         */
 		RtcSystickRoutine();
+		//key_led_reverse();
 		if(Rtc.Flag){
 			Rtc.Flag = FALSE;
-			print_string("Runing time is :");
-			print_char(mod(Rtc.Hour,10)+0x30);
-			print_char(rem(Rtc.Hour,10)+0x30);
-			print_char(58);
-			print_char(mod(Rtc.Minute,10)+0x30);
-			print_char(rem(Rtc.Minute,10)+0x30);
-			print_char(58);
-			print_char(mod(Rtc.Second,10)+0x30);
-			print_char(rem(Rtc.Second,10)+0x30);
-			print_char('\n');
+			//key_led_reverse();
+			//print_string("Runing time is :");
+			//print_char(mod(Rtc.Hour,10)+0x30);
+			//print_char(rem(Rtc.Hour,10)+0x30);
+			//print_char(58);
+			//print_char(mod(Rtc.Minute,10)+0x30);
+			//print_char(rem(Rtc.Minute,10)+0x30);
+			//print_char(58);
+			//print_char(mod(Rtc.Second,10)+0x30);
+			//print_char(rem(Rtc.Second,10)+0x30);
+			//print_char('\n');
 		}
-		TaskDisplayScan();//10ms 刷新一次
-		os_wait2(K_TMO, 10);
-		os_reset_interval (10);
+		TaskDisplayScan();
+		os_wait2(K_TMO, 50);
+		//os_reset_interval (100);
   }
 }
 
@@ -416,47 +414,98 @@ void Dispaly (void) _task_ DISPLAY{
 /******************************************************************************/
 void Key_Scan (void) _task_ KEY_SCAN_1{
   while (1)  {                        /* endless loop                         */
-		os_wait2(K_TMO, 1);
-		if(KeyCode !=0)
-			isr_set_ready(KEY_DONE_2);
-		//os_wait2(K_TMO, 1);
-		//os_reset_interval (1);
+		//os_wait2(K_TMO, 10);        //10ms 一次
+		Gpio_KeyScan(&KeyCode);
+		switch(KeyCode)
+		{
+			case KeySpeed:
+				if(SysRun.Mode == SET_MODE)
+				{
+					//LED++
+					SysRun.LedNum = SysRun.LedNum+LED_NUM_STEP;
+					SysRun.LedNum = is_max(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);       //大于最大恢复最小
+					printss(DEBUG,"LED num:",SysRun.LedNum);
+				}
+				else
+				{
+					//Speed++;
+					SysRun.LedSpeed = SysRun.LedSpeed-SPEED_STEP;	
+					SysRun.LedSpeed = is_min(SPEED_MIN,SPEED_MAX,SysRun.LedSpeed);      //小于最小恢复最大	
+					printss(DEBUG,"LED Speed:",SysRun.LedSpeed);					
+				}
+				E2promErase = TRUE;//需要存储
+				break;
+			case KeyRunMode:
+				if(SysRun.Mode == SET_MODE)
+				{
+					//LED--
+					SysRun.LedNum = SysRun.LedNum-LED_NUM_STEP;
+					SysRun.LedNum = is_min(LED_NUM_MIN,LED_NUM_MAX,SysRun.LedNum);        //小于最小恢复最大
+					printss(DEBUG,"LED num:",SysRun.LedNum);
+				}
+				else
+				{
+					//Mode++;
+					SysRun.LedMode = SysRun.LedMode+LED_TYPE_STEP;
+					SysRun.LedMode = is_max(LED_TYPE_MIN,LED_TYPE_MAX,SysRun.LedMode);		//大于最大恢复最小
+					printss(DEBUG,"LED mode:",SysRun.LedMode);
+				}
+				E2promErase = TRUE;//需要存储
+				break;
+			default: 
+				break;
+		}
+			if(KeyCode != KeyNull){			               
+				os_delete_task (LIGHTS_2);
+				Clear_WS2811();//初始化WS2811
+				os_create_task (LIGHTS_2);   
+				LedFlash = TRUE;
+				KeyCode = KeyNull;
+			}
+		E2PROM_Strings[LED_NUM_CFG]  = SysRun.LedNum;  //获取led路数
+		E2PROM_Strings[RUN_TYPE_CFG] = SysRun.LedMode; //获取运行模式
+		E2PROM_Strings[SPEED_CFG]    = SysRun.LedSpeed;//获取运行速度
+		vEepromUpdate();
+		Key_EventProtect = FALSE;//防止键值未处理时又触发新按键	
+		os_wait2 (K_SIG|K_TMO, 10);	
   }
 }
 /******************************************************************************/
 /*    Task 3 'job3':  RTX-51 tiny starts this task with os_create_task (3)    */
 /******************************************************************************/
-void KeyTask (void) _task_ KEY_DONE_2{
+void WS2811_LedTaks (void) _task_ LIGHTS_2{
   while (1)  {                        /* endless loop                         */
-	//os_wait2(K_TMO, 100);
-	os_wait2 (K_SIG|K_TMO, 1);
-	switch(KeyCode){
-		case KeySpeed:
-			//print_char(KeyCode);
-			break;
-		case KeyRunMode:
-			//print_char(KeyCode);
-			break;
-		case KeyLedNum:
-			//print_char(KeyCode);
-			break;
-		default:     
-			break;
+	switch((SysRun.Mode == SET_MODE)?0:SysRun.LedMode)
+		{
+			case SET_LINE://设置模式
+				TurnOn(SysRun.LedNum,0);
+				break;
+			case Mode1:
+				liushui123(SysRun.LedNum,1);
+				//ChangeHigh(SysRun.LedNum,1);
+				//ChangeLose(SysRun.LedNum,1);
+				break;
+			case Mode2:
+				ChangeHigh(SysRun.LedNum,0);
+				ChangeLose(SysRun.LedNum,0);
+				break;
+			case Mode3:
+				BreathingAdd_Two(SysRun.LedNum);
+			//	liushui123(SysRun.LedNum);
+			//liushui123(SysRun.LedNum,1);
+			//liushui123(SysRun.LedNum,1);
+				//liushui(SysRun.LedNum,0);
+			//  liushui(SysRun.LedNum,1);
+				//BreathingDel_Two(SysRun.LedNum);
+				//BreathingAdd_Two(SysRun.LedNum);
+				break;
+			case Mode4:
+				break;
+			default:
+				TurnOn(SysRun.LedNum,0);
+				break;	
+			}		
 	}
-  }
-	//os_wait2 (K_SIG, 0);
-}
-/******************************************************************************/
-/*    Task 3 'job3':  RTX-51 tiny starts this task with os_create_task (3)    */
-/******************************************************************************/
-void WS2811_LedTaks (void) _task_ LIGHTS_3{
-  while (1)  {                        /* endless loop                         */
-
-		RgbChange();
-		//led_test();
-		os_wait2(K_TMO, 1);
-		//led_test();
-  }
 }
 //========================================================================
 // 函数: void uart1_int (void) interrupt UART1_VECTOR
