@@ -2,7 +2,7 @@
 #define __LED_LIB_H_
 #include "system.h"
 
-#define WS2811_SDA_GPIO	 P34
+#define WS2811_SDA_GPIO	 P35
 #define WS2811_SDA1_GPIO P35
 #define HZ_35000000 1
 

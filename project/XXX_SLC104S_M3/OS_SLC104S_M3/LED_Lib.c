@@ -250,8 +250,8 @@ void TurnOn(u8 nLed,bit BL) //常亮数量
 		for(n=0;n<3-RemLed;n++)//RGB_count
 			WS2811_SendByte(0);
 	}		
-	WS2811_Reset();
-	//os_wait2(K_TMO, 1);
+	//WS2811_Reset();
+	os_wait2(K_TMO, 10);
 }
 /**********************************************
 *功能：常灭 
