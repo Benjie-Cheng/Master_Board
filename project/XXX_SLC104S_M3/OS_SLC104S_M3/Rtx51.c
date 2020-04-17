@@ -74,6 +74,9 @@ void Sys_init (void)  {
 	SPEED_GPIO = 1;
 	MODE_GPIO = 1;
 	SysRun.Mode = RUN_MODE;
+	if(!SPEED_GPIO&&(!MODE_GPIO))
+		SysRun.Mode = SET_MODE;
+/*
 	while((!SPEED_GPIO&&(!MODE_GPIO)))//双键齐按超过0.5S,进入设置模式
 	{
 		uDelayMs(10);
@@ -83,6 +86,7 @@ void Sys_init (void)  {
 			break;
 		}
 	}
+*/
 }
 //------------------------------------------------
 void RtcSystickRoutine(void)
