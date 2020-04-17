@@ -135,13 +135,6 @@ typedef enum {
 	Mode8,
 	Mode9
 }LightType;
-//typedef enum {
-//	INIT_0,                          /* task number of task:  init           */
-//	KEY_SCAN_1,						   /* task number of task:  keyscan        */
-//	KEY_DONE_2,                        /* task number of task:  keydone        */
-//	LIGHTS_3,                          /* task number of task:  lights         */
-//	DISPLAY,
-//};//SysTask;
 
 typedef enum {
 	KeyNull=0,
@@ -164,7 +157,9 @@ typedef enum {
 	LED_NUM_CFG=0,
 	RUN_TYPE_CFG,
 	SPEED_CFG,
-	REV_CFG,
+	BL1_CFG,
+	BL2_CFG,
+	BL3_CFG,
 	MAX_CFG
 /*
 data0：路数

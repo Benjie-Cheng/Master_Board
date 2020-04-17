@@ -51,7 +51,7 @@ typedef struct{
 }RtcStruct;
 RtcStruct idata Rtc; //定义RTC 结构体
 //--------------------------------------
-static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a,0x00};//data0：LED num，data1：mode data2：speed
+static u8 	E2PROM_Strings[MAX_CFG] = {0x03,0x01,0x0a,0x01,0x01,0x01};//data0：LED num，data1：mode data2：speed
 /*
 data0：LED路数
 data1：花样模式
@@ -73,9 +73,11 @@ void Sys_init (void)  {
 	//P3n_pure_input(0x11);	//设置为准双向口
 	SPEED_GPIO = 1;
 	MODE_GPIO = 1;
-	SysRun.Mode = RUN_MODE;
+	
 	if((!SPEED_GPIO)&&(!MODE_GPIO))
 		SysRun.Mode = SET_MODE;
+	else 
+		SysRun.Mode = RUN_MODE;
 /*
 	while((!SPEED_GPIO)&&(!MODE_GPIO))//双键齐按超过0.5S,进入设置模式
 	{
@@ -370,21 +372,11 @@ void init (void) _task_ INIT_0{
 	SysRun.LedNum   = E2PROM_Strings[LED_NUM_CFG]; //获取led路数
 	SysRun.LedMode  = E2PROM_Strings[RUN_TYPE_CFG];//获取运行模式
 	SysRun.LedSpeed = E2PROM_Strings[SPEED_CFG];   //获取运行速度
-	SysRun.State     = E2PROM_Strings[REV_CFG];     //版本：试用0x11、上锁、解锁0x66。
-#if (LOCK_SUPPORT)
-	if((SysRun.State != LOCK_REV)||(SysRun.State != TEST_REV))
-		goto lock_mode;
-#endif
+//	SysRun.State     = E2PROM_Strings[REV_CFG];     //版本：试用0x11、上锁、解锁0x66。
 	os_create_task (DISPLAY);                   
 	os_create_task (KEY_SCAN_1);                               
 	os_create_task (LIGHTS_2); 
 	os_delete_task (INIT_0);
-#if (LOCK_SUPPORT)
-lock_mode：//锁模式
-	puts_to_SerialPort(ERR,"Please contact 15901856750\n");
-	print_char(creat_random()+TEST_REV);//随机数用于远程升级解锁
-	os_delete_task (INIT_0);
-#endif
 }
 
 /******************************************************************************/
@@ -393,7 +385,6 @@ lock_mode：//锁模式
 void Dispaly (void) _task_ DISPLAY{  
   while (1)  {                        /* endless loop                         */
 		RtcSystickRoutine();
-		//key_led_reverse();
 		if(Rtc.Flag){
 			Rtc.Flag = FALSE;
 			//key_led_reverse();
@@ -462,8 +453,8 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 		}
 			if(KeyCode != KeyNull){			               
 				os_delete_task (LIGHTS_2);
-				Clear_WS2811();//初始化WS2811
-				os_create_task (LIGHTS_2);   
+				Clear_WS2811();//初始化WS2811   
+				os_create_task (LIGHTS_2);
 				LedFlash = TRUE;
 				KeyCode = KeyNull;
 			}
@@ -483,47 +474,17 @@ void WS2811_LedTaks (void) _task_ LIGHTS_2{
 	switch((SysRun.Mode == SET_MODE)?5:SysRun.LedMode)
 		{
 			case SET_LINE://设置模式
-				BLSet(SysRun.LedNum,0,LOW_BL);
+				BLSet(SysRun.LedNum,0,E2PROM_Strings[BL1_CFG]);
 				break;
 			case Mode1:
-				BLSet(SysRun.LedNum,0,MED_BL);
+				BLSet(SysRun.LedNum,0,E2PROM_Strings[BL2_CFG]);
 				break;
 			case Mode2:
-				BLSet(SysRun.LedNum,0,MAX_BL);
+				BLSet(SysRun.LedNum,0,E2PROM_Strings[BL3_CFG]);
 				break;
 			default:
 				TurnOn(SysRun.LedNum,0);
 				break;	
 			}		
 	}
-}
-//========================================================================
-// 函数: void uart1_int (void) interrupt UART1_VECTOR
-// 描述: UART1中断函数。
-// 参数: nine.
-// 返回: none.
-// 版本: VER1.0
-// 日期: 2014-11-28
-// 备注: 
-//========================================================================
-void uart1_int (void) interrupt UART1_VECTOR
-{
-	EA =0;
-	if(RI)
-	{
-		RI = 0;
-		Rec_Buf[RX_CONT] = SBUF;                    //把串口1缓存SBUF寄存器数据依次存放到数组Rec_Buf中
-		RX_CONT++;                                   
-		if(RX_CONT>Buf_Max)                          //接收数大于定义接收数组最大个数时，覆盖接收数组之前值
-		{
-			RX_CONT = 0;
-		}   
-	}
-
-	if(TI)
-	{
-		TI = 0;
-		B_TX1_Busy = 0;
-	}
-	EA =1;
 }

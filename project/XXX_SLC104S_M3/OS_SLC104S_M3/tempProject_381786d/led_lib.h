@@ -11,13 +11,11 @@
 #define GREEN 3
 #define WHITE 0
 extern SysRunStruct SysRun;
-//extern u8  nWs;
-//extern void DelayMS(u16 t);
 
 void WS2811_SendByte(u8 dat);		//@高位先传
 void WS2811_Reset(void);        //@复位芯片
 void Clear_WS2811(void);        //@清0函数
-
+/*
 void liushui123x(BOOL RL,u16 led_num);// 顺序三路单灯流水
 void PAOMAADD(u8 TYPE,u16 GG1,u16 GG2);//单色单灯叠加亮，底色单灯叠加灭
 void PAOMADEC(u8 GG1,u8 GG2);//
@@ -35,6 +33,7 @@ void PAOMA(u8 GG1,u8 GG2);//
 //void ChangeLose(bit GG1,bit RR1,bit BB1);	//纯色渐变暗
 void RgbChange(void);//七彩渐变色
 void led_test();
+*/
 void TurnOn(u8 nLed,bit BL); //常亮数量
 void TurnOff(u8 nLed,bit BL);	//常灭
 void ChangeHigh(u8 nLed,bit BL); //纯色渐亮

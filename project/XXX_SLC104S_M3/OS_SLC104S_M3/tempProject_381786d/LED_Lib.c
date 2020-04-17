@@ -13,48 +13,6 @@
 	else if(GREEN==TYPE){GREEN_LIGHT(BL);}\
 	else if(WHITE==TYPE){WHITE_LIGHT(BL);}}
 
-//extern   SysRun.LedNum = 1;
-/*
-#ifdef HZ_11059200
-void Delay1us()		//@11.0592MHz
-{
-	_nop_();
-	_nop_();
-	_nop_();
-}
-#elif HZ_22118400
-void Delay1us()		//@22.1184MHz
-{
-	unsigned char i;
-
-	i = 3;
-	while (--i);
-}
-#elif HZ_33177600
-void Delay1us()		//@33.1776MHz
-{
-	unsigned char i;
-
-	_nop_();
-	_nop_();
-	_nop_();
-	i = 5;
-	while (--i);
-}
-#elif HZ_35000000
-void Delay1us()		//@35MHz
-{
-	unsigned char i;
-
-	_nop_();
-
-	i = 1;
-	//i = 6;//200个灯会闪。
-	while (--i);
-}
-#endif
-*/
-extern u8 count;
 void Delay1us()		//@35MHz
 {
 	unsigned char i;
@@ -117,6 +75,7 @@ void WS2811_SendByte(u8 dat)		//@高位先传
     }
 	EA =1;
 }
+/*
 void WS2811_Send24bit(u32 dat)		//@高位先传
 {
     u8 i;
@@ -133,7 +92,7 @@ void WS2811_Send24bit(u32 dat)		//@高位先传
         dat <<= 1;
     }
 }
-
+*/
 void Clear_WS2811(void)
 {
 	u16 i=0;
@@ -147,60 +106,6 @@ void Clear_WS2811(void)
 	}
 	WS2811_Reset();
 }
-/*
-void ChangeHigh(bit GG1,bit RR1,bit BB1) //纯色渐亮
-{  
-	u8 n,i,num;//RGB_count=RGB_c;
-	for(i=0;i<250;i++)//brightness
-	{
-		for(n=0;n<SysRun.LedNum;n++)//RGB_count
-		{
-			WS2811_SendByte(num=GG1?i:0);
-			WS2811_SendByte(num=RR1?i:0);
-			WS2811_SendByte(num=BB1?i:0);
-		}
-		WS2811_Reset();
-		if(i<50)
-			os_wait2(K_TMO, 2);
-		else
-			os_wait2(K_TMO, 1);
-	}
-}
-
-void ChangeLose(bit GG1,bit RR1,bit BB1)	//纯色渐暗
-{  
-	u8 n,i,num;//,RGB_count=RGB_c;
-	for(i=250;i>0;i--)
-	{
-		for(n=SysRun.LedNum;n>0;n--)
-		{
-			WS2811_SendByte(num=GG1?i:0);
-	    WS2811_SendByte(num=RR1?i:0);
-	    WS2811_SendByte(num=BB1?i:0);
-		}
-			WS2811_Reset();
-		//if(i<50)
-			os_wait2(K_TMO, 2);
-		//else
-		//	os_wait2(K_TMO, 2);
-	}	
-}
-*/
-void led_test()
-{
-
-	WS2811_SendByte(0);
-	WS2811_SendByte(0);
-	WS2811_SendByte(0);
-	//WS2811_Send_L();
-	//LED_SET(BLUE,20);
-	//LED_SET(RED,80);
-	//LED_SET(GREEN,120);
-	//LED_SET(WHITE,250);
-	WS2811_Reset();
-	os_wait2(K_TMO, 2);
-}
-
 void OS_Delay(u8 t,u8 n)
 {
 	u16 i,j;
@@ -275,7 +180,9 @@ void TurnOff(u8 nLed,bit BL)	//常灭
 		WS2811_SendByte(BL ? BL_MIN(BL):0);
 	for(n=0;n<3-RemLed;n++)//RGB_count
 		WS2811_SendByte(0);
-	WS2811_Reset();
+	//WS2811_Reset();
+	os_wait2(K_TMO, 10);
+	
 }
 /**********************************************
 *功能：纯色渐亮 
