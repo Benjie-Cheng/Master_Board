@@ -51,4 +51,7 @@ void BreathingAdd_Two(u8 nLed);
 void BreathingDel_Two(u8 nLed);
 void liushui(u8 nLed,bit BL);
 void liushui123(u8 nLed,bit BL);
+
+//------------此区域为快速区域-----------------------------//
+void liushui_fast(u8 nLed,bit BL,u8 nRun);//单个快速流水
 #endif

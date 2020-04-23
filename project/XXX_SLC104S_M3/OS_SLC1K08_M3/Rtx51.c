@@ -455,10 +455,15 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 			default: 
 				break;
 		}
-			if(KeyCode != KeyNull){			               
-				os_delete_task (LIGHTS_2);
-				Clear_WS2811();//初始化WS2811
-				os_create_task (LIGHTS_2);   
+			if(KeyCode != KeyNull)
+			{			               
+				
+				if(SysRun.Mode != SET_MODE)
+					Clear_WS2811();//初始化WS2811
+				if(KeyCode == KeyRunMode && SysRun.Mode != SET_MODE){
+					os_delete_task (LIGHTS_2);
+					os_create_task (LIGHTS_2);   
+				}
 				LedFlash = TRUE;
 				KeyCode = KeyNull;
 			}
@@ -467,7 +472,7 @@ void Key_Scan (void) _task_ KEY_SCAN_1{
 		E2PROM_Strings[SPEED_CFG]    = SysRun.LedSpeed;//获取运行速度
 		vEepromUpdate();
 		Key_EventProtect = FALSE;//防止键值未处理时又触发新按键	
-		os_wait2 (K_SIG|K_TMO, 50);	
+		os_wait2 (K_SIG|K_TMO, 10);	
   }
 }
 /******************************************************************************/
@@ -481,7 +486,12 @@ void WS2811_LedTaks (void) _task_ LIGHTS_2{
 				TurnOn(SysRun.LedNum,0);
 				break;
 			case Mode1:
-				liushui123(SysRun.LedNum,1);
+				//liushui123(SysRun.LedNum,1);
+			liushui_fast(SysRun.LedNum,1,1);
+			liushui_fast(SysRun.LedNum,1,2);
+			//liushui_fast(SysRun.LedNum,0,100);
+			//liushui(SysRun.LedNum,0);
+			//liushui(SysRun.LedNum,1);
 				//ChangeHigh(SysRun.LedNum,1);
 				//ChangeLose(SysRun.LedNum,1);
 				break;
@@ -491,15 +501,17 @@ void WS2811_LedTaks (void) _task_ LIGHTS_2{
 				break;
 			case Mode3:
 				BreathingAdd_Two(SysRun.LedNum);
+				BreathingDel_Two(SysRun.LedNum);
 			//	liushui123(SysRun.LedNum);
 			//liushui123(SysRun.LedNum,1);
-			liushui123(SysRun.LedNum,1);
+			
 				//liushui(SysRun.LedNum,0);
 			//  liushui(SysRun.LedNum,1);
 				//BreathingDel_Two(SysRun.LedNum);
 				//BreathingAdd_Two(SysRun.LedNum);
 				break;
 			case Mode4:
+				liushui123(SysRun.LedNum,1);
 				break;
 			default:
 				TurnOn(SysRun.LedNum,0);

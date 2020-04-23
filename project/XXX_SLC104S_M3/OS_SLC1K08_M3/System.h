@@ -113,12 +113,12 @@ enum {
 	LED_NUM_MAX  = 255,
 	LED_NUM_STEP = 1,
 	LED_TYPE_MIN  = 0,
-	LED_TYPE_MAX  = 10,
+	LED_TYPE_MAX  = 4,
 	LED_TYPE_STEP = 1,
 };
 
 #define MAX_BL 150
-#define MIN_BL 2
+#define MIN_BL 10
 #define BL_SET 1
 #define BL_MIN(n) n ? MIN_BL:0
 typedef enum {
@@ -196,13 +196,13 @@ extern SysRunStruct;
 */
 //--------stc8f1k08
 #define SPEED_GPIO P54
-#define MODE_GPIO  P30
-#define NLED_GPIO  P33
+#define MODE_GPIO  P33
+#define NLED_GPIO  P30
 //------common function------------------------------//
 void TxSend(u8 dat);
 void Fake_PrintString(u8 *puts);
 void key_led_reverse(void);
 void key_led_on(BOOL enable);
 void uDelayMs(u16 t);		//@35MHz
-
+void uDelayus(u16 t);
 #endif

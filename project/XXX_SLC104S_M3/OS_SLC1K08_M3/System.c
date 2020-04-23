@@ -26,6 +26,24 @@ void uDelayMs(u16 t)
 		Delay1ms();
 	EA=1;
 }
+static void Delay1us()		//@35MHz
+{
+	unsigned char i;
+
+	_nop_();
+
+	i = 1;
+	//i = 6;//200?????
+	while (--i);
+}
+void uDelayus(u16 t)
+{
+	u16 i=0;
+	EA=1;
+	for(i=0;i<t;i++)
+		Delay1us();
+	EA=1;
+}
 //========================================================================
 // 函数: void	BitTime(void)
 // 描述: 位时间函数。
@@ -83,7 +101,7 @@ void Fake_PrintString(u8 *puts)
 }
 
 #if defined LED_DEBUG
-#define LED_DEBUG_GPIO P33
+#define LED_DEBUG_GPIO P30
 //========================================================================
 // 描述: 按键指示灯 。
 //========================================================================

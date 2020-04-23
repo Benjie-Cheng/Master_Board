@@ -250,8 +250,8 @@ void TurnOn(u8 nLed,bit BL) //常亮数量
 		for(n=0;n<3-RemLed;n++)//RGB_count
 			WS2811_SendByte(0);
 	}		
-	WS2811_Reset();
-	//os_wait2(K_TMO, 1);
+	//WS2811_Reset();
+	os_wait2(K_TMO, 10);
 }
 /**********************************************
 *功能：常灭 
@@ -337,6 +337,7 @@ void func1(u8 num1,u8 num2,u8 nLed,bit up)
 
 	//开始前全灭
 	u8 i,t,RemLed;//RGB_count=RGB_c;
+	RemLed = rem(nLed,3);//最后一个ws2811的单路数
 	if(up){
 		if(nLed<=3)
 		{
@@ -349,7 +350,7 @@ void func1(u8 num1,u8 num2,u8 nLed,bit up)
 /*****-----------------------------------**********/
 				WS2811_SendByte(BL_MIN(BL_SET));
 /*****-----------------------------------**********/
-				for(t=0;t<3-num1-num2-1;t++)
+				for(t=0;t<3-RemLed-1;t++)
 					WS2811_SendByte(0);
 				WS2811_Reset();
 				os_wait2(K_TMO, SysRun.LedSpeed);
@@ -428,7 +429,7 @@ void BreathingAdd_Two(u8 nLed)
 	for(n=0;n<nLed;n++)
 	{
 		func1(n,1,n,UP);
-		os_wait2(K_TMO, 1);
+		//os_wait2(K_TMO, 1);
 	}
 //	os_wait2(K_TMO, SysRun.LedSpeed);
 }
@@ -443,19 +444,49 @@ void BreathingDel_Two(u8 nLed)
 	for(n=0;n<nLed;n++)
 	{
 		func1(nLed-n-1,1,n,DWON);
-		os_wait2(K_TMO, 1);
+		//os_wait2(K_TMO, 1);
 	}
 	//TurnOff(nLed);
 	//func1(0,1,nLed,DWON);
 	//os_wait2(K_TMO, SysRun.LedSpeed);
 }
 
+void liushui_fast(u8 nLed,bit BL,u8 nRun)
+{
+	u8 i,n;
+	TurnOff(nLed,BL);//背光
+	for(n=0;n<=nLed;n++)
+	{
+
+		for(i=0;i<n-nRun;i++)
+		{
+			WS2811_SendByte(BL_MIN(BL));
+		}
+		for(i=0;i<nRun;i++)
+		{
+			WS2811_SendByte(MAX_BL);//常亮
+		}
+		//uDelayus(50);
+		OS_Delay(SysRun.LedSpeed,5);
+	}
+
+}
 /**********************************************
 *功能：n个呼吸
 **********************************************/
 void breath_n(u8 n,bit BL,u8 mode)
 {
 	u8 i,j;
+	if(mode==3){
+			for(i=0;i<n;i++)
+			{
+				WS2811_SendByte(BL_MIN(BL));
+			}
+			WS2811_SendByte(MAX_BL);//常亮
+			//uDelayus(50);
+			OS_Delay(SysRun.LedSpeed,4);
+			return;
+		}
 	for(j=BL_MIN(BL);j<=MAX_BL;j++)//brightness
 		{
 			for(i=0;i<n;i++)
@@ -468,10 +499,13 @@ void breath_n(u8 n,bit BL,u8 mode)
 				WS2811_SendByte(MAX_BL+(BL_MIN(BL))-j);
 			else
 				WS2811_SendByte(MAX_BL);//常亮
-			OS_Delay(SysRun.LedSpeed,1);
+			//WS2811_Reset();
+			//uDelayMs(1);
+			uDelayus(50);
+			//OS_Delay(SysRun.LedSpeed,1);
 		}
-			WS2811_Reset();
-			OS_Delay(SysRun.LedSpeed,100);
+			//WS2811_Reset();
+			OS_Delay(SysRun.LedSpeed,1);
 }
 /**********************************************
 *功能：一路呼吸流水,带背光控制
@@ -483,7 +517,7 @@ void liushui123(u8 nLed,bit BL)
 	for(n=0;n<nLed;n++)
 	{
 		breath_n(n,BL,UP);
-		breath_n(n,BL,3);
+		//breath_n(n,BL,3);
 		breath_n(n,BL,DWON);
 	}
 }
